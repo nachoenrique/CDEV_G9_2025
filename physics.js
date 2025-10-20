@@ -54,9 +54,10 @@ export function getWorldQuaternion(object) {
 
 /**
  * Convierte una geometría de Three.js a un Trimesh de Cannon.js
+ * Trimesh proporciona colisiones precisas con geometría compleja
  * @param {THREE.BufferGeometry} geometry - Geometría de Three.js
  * @param {THREE.Vector3} scale - Escala del objeto
- * @returns {CANNON.Trimesh} Trimesh con la geometría completa
+ * @returns {CANNON.Trimesh} Trimesh con la geometría exacta
  */
 export function createTrimeshFromGeometry(geometry, scale = new THREE.Vector3(1, 1, 1)) {
   const vertices = [];
@@ -64,7 +65,7 @@ export function createTrimeshFromGeometry(geometry, scale = new THREE.Vector3(1,
   
   const position = geometry.attributes.position;
   
-  // Extraer vértices
+  // Extraer vértices aplicando escala
   for (let i = 0; i < position.count; i++) {
     vertices.push(
       position.getX(i) * scale.x,
@@ -73,13 +74,13 @@ export function createTrimeshFromGeometry(geometry, scale = new THREE.Vector3(1,
     );
   }
   
-  // Extraer índices
+  // Extraer índices de las caras
   if (geometry.index) {
     for (let i = 0; i < geometry.index.count; i++) {
       indices.push(geometry.index.getX(i));
     }
   } else {
-    // Si no hay índices, crearlos secuencialmente
+    // Si no hay índices, crear secuencia 0,1,2,3,4,5...
     for (let i = 0; i < position.count; i++) {
       indices.push(i);
     }
@@ -90,16 +91,20 @@ export function createTrimeshFromGeometry(geometry, scale = new THREE.Vector3(1,
 
 /**
  * Crea un cuerpo físico compuesto a partir de un modelo 3D usando Trimesh
- * Recorre todos los meshes del modelo y crea Trimesh precisos para cada uno
+ * Proporciona colisiones precisas para geometría compleja como laberintos
  * @param {THREE.Object3D} model - Modelo 3D de Three.js
  * @param {CANNON.World} world - Mundo de física de Cannon.js
  * @returns {CANNON.Body} Cuerpo físico compuesto
  */
 export function createCompoundBodyFromModel(model, world) {
-  const body = new CANNON.Body({ mass: 0 }); // Masa 0 = objeto estático
+  const body = new CANNON.Body({ 
+    mass: 0,  // Objeto estático
+    type: CANNON.Body.STATIC  // Explícitamente estático para mejor rendimiento
+  });
   
   let shapeCount = 0;
-  let vertexCount = 0;
+  let totalVertices = 0;
+  let totalFaces = 0;
   
   // Obtener posición del modelo padre
   const modelWorldPos = new THREE.Vector3();
@@ -113,27 +118,41 @@ export function createCompoundBodyFromModel(model, world) {
         const scale = new THREE.Vector3();
         child.getWorldScale(scale);
         
-        // Crear Trimesh desde la geometría completa
-        const trimesh = createTrimeshFromGeometry(child.geometry, scale);
+        // Crear Trimesh desde la geometría - colisiones precisas
+        const trimeshShape = createTrimeshFromGeometry(child.geometry, scale);
+        
+        // Configuración crítica para Trimesh
+        trimeshShape.setScale(new CANNON.Vec3(1, 1, 1));
+        trimeshShape.updateAABB();
+        trimeshShape.updateBoundingSphereRadius();
+        trimeshShape.updateTree();
         
         // Obtener posición RELATIVA al modelo padre
         const childWorldPos = new THREE.Vector3();
         child.getWorldPosition(childWorldPos);
         const relativePos = childWorldPos.sub(modelWorldPos);
         
-        const position = new CANNON.Vec3(relativePos.x, relativePos.y, relativePos.z);
+        const position = new CANNON.Vec3(
+          relativePos.x, 
+          relativePos.y, 
+          relativePos.z
+        );
         
         // Obtener rotación relativa
         const quaternion = getWorldQuaternion(child);
         
         // Agregar Trimesh al cuerpo compuesto
-        body.addShape(trimesh, position, quaternion);
+        body.addShape(trimeshShape, position, quaternion);
         shapeCount++;
-        vertexCount += trimesh.vertices.length / 3;
+        
+        const vertexCount = trimeshShape.vertices.length / 3;
+        const faceCount = trimeshShape.indices.length / 3;
+        totalVertices += vertexCount;
+        totalFaces += faceCount;
         
         console.log(`✓ Trimesh creado para: ${child.name || 'mesh sin nombre'}`, {
-          vertices: trimesh.vertices.length / 3,
-          triangles: trimesh.indices.length / 3,
+          vértices: vertexCount,
+          caras: faceCount,
           position: position
         });
       } catch (error) {
@@ -144,7 +163,8 @@ export function createCompoundBodyFromModel(model, world) {
   
   console.log(`✅ Cuerpo físico con Trimesh creado:`, {
     formas: shapeCount,
-    vértices: vertexCount
+    vértices_totales: totalVertices,
+    caras_totales: totalFaces
   });
   
   return body;

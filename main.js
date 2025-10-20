@@ -4,7 +4,7 @@ import CannonDebugger from 'cannon-es-debugger';
 import { Maze } from './maze.js';
 
 // ⚙️ CONFIGURACIÓN
-const DEBUG_PHYSICS = false; // Cambiar a true para ver las formas físicas en verde
+const DEBUG_PHYSICS = true; // Cambiar a true para ver las formas físicas en verde
 
 // Escena, cámara y renderizador
 const scene = new THREE.Scene();
@@ -19,26 +19,44 @@ light.position.set(5, 10, 5);
 scene.add(light);
 scene.add(new THREE.AmbientLight(0x404040));
 
-// Mundo de física
+// Mundo de física con configuración para Trimesh
 const world = new CANNON.World();
-world.gravity.set(0, -10, 0);
+world.gravity.set(0, -30, 0); // Gravedad de la Tierra en m/s²
+world.broadphase = new CANNON.NaiveBroadphase(); // Broadphase más preciso
+world.solver.iterations = 20; // Más iteraciones del solver
+world.allowSleep = false; // Desactivar sleep para objetos críticos
 
 // Debug de física (solo si está activado)
 let cannonDebugger = null;
+let velocityArrow = null;
+
 if (DEBUG_PHYSICS) {
   cannonDebugger = new CannonDebugger(scene, world, {
     color: 0x00ff00,
     scale: 1.0
   });
+  
+  // Crear flecha para visualizar el vector de velocidad
+  velocityArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(0, 0, 0), // Dirección (se actualizará en cada frame)
+    new THREE.Vector3(0, 0, 0), // Origen (se actualizará en cada frame)
+    1, // Longitud base
+    0xff00ff, // Color magenta
+    0.5, // Longitud de la cabeza
+    0.3  // Ancho de la cabeza
+  );
+  scene.add(velocityArrow);
+  
   console.log('🐛 Debug de física activado');
+  console.log('➡️ Flecha de velocidad: Magenta');
 } 
 
-// Materiales de contacto para mejor física
+// Materiales de contacto SIN fricción ni restitución
 const mazeMaterial = new CANNON.Material('maze');
 const sphereMaterial = new CANNON.Material('sphere');
 const contactMaterial = new CANNON.ContactMaterial(mazeMaterial, sphereMaterial, {
-  friction: 0.3,
-  restitution: 0.3
+  friction: 0.0,      // SIN fricción (deslizamiento perfecto)
+  restitution: 0.0    // SIN rebote
 });
 world.addContactMaterial(contactMaterial); 
 
@@ -64,11 +82,18 @@ scene.add(sphereMesh);
 // Esfera (física)
 const sphereShape = new CANNON.Sphere(0.5);
 const sphereBody = new CANNON.Body({ 
-  mass: 1,
-  material: sphereMaterial, 
+  mass: 0.5, // Masa realista para una bola pequeña (500g)
+  material: sphereMaterial,
+  linearDamping: 0.0,  // Sin amortiguación lineal
+  angularDamping: 0.0  // Sin amortiguación angular
 });
 sphereBody.addShape(sphereShape);
 sphereBody.position.set(0, 20, 0);
+
+// CCD (Continuous Collision Detection) CRÍTICO para Trimesh
+sphereBody.ccdSpeedThreshold = 0.001; // Activa CCD desde velocidades muy bajas
+sphereBody.ccdIterations = 30;        // Iteraciones aumentadas para Trimesh
+
 world.addBody(sphereBody);
 
 // Posición de la cámara
@@ -86,7 +111,10 @@ window.addEventListener('mousemove', (event) => {
   mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
 });
 
-// Loop de animación
+// Loop de animación con parámetros ajustados para Trimesh
+const timeStep = 1 / 60; // 60 FPS - timestep más pequeño
+const maxSubSteps = 20;   // MÁS substeps para Trimesh (CRÍTICO)
+
 function animate() {
   requestAnimationFrame(animate);
   
@@ -96,11 +124,35 @@ function animate() {
   
   maze.setRotation(tiltX, 0, tiltZ);
   
-  world.step(1 / 60);
+  // Simulación con múltiples substeps para evitar atravesamientos
+  world.step(timeStep, timeStep, maxSubSteps);
   
   // Actualizar debugger de física (solo si está activado)
   if (cannonDebugger) {
     cannonDebugger.update();
+  }
+  
+  // Actualizar vector de velocidad (solo si está activado)
+  if (velocityArrow) {
+    const velocity = sphereBody.velocity;
+    const speed = velocity.length();
+    
+    if (speed > 0.01) { // Solo mostrar si hay movimiento significativo
+      // Posición de la flecha (desde el centro de la esfera)
+      velocityArrow.position.copy(sphereMesh.position);
+      
+      // Dirección normalizada de la velocidad
+      const direction = new THREE.Vector3(velocity.x, velocity.y, velocity.z).normalize();
+      velocityArrow.setDirection(direction);
+      
+      // Longitud AMPLIFICADA proporcional a la velocidad
+      const arrowLength = Math.min(speed * 3, 30); // Amplificado x6 y máximo 30 unidades
+      velocityArrow.setLength(arrowLength, arrowLength * 0.25, arrowLength * 0.2);
+      
+      velocityArrow.visible = true;
+    } else {
+      velocityArrow.visible = false; // Ocultar si está casi quieto
+    }
   }
   
   sphereMesh.position.copy(sphereBody.position);
