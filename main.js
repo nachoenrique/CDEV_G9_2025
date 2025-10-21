@@ -3,8 +3,11 @@ import * as CANNON from 'cannon-es';
 import CannonDebugger from 'cannon-es-debugger';
 import { Maze } from './maze.js';
 
-// ⚙️ CONFIGURACIÓN
+// #region Configuración inicial
+// Debugger globals
 const DEBUG_PHYSICS = true; // Cambiar a true para ver las formas físicas en verde
+let cannonDebugger = null;
+let velocityArrow = null;
 
 // Escena, cámara y renderizador
 const scene = new THREE.Scene();
@@ -26,40 +29,17 @@ world.broadphase = new CANNON.NaiveBroadphase(); // Broadphase más preciso
 world.solver.iterations = 20; // Más iteraciones del solver
 world.allowSleep = false; // Desactivar sleep para objetos críticos
 
-// Debug de física (solo si está activado)
-let cannonDebugger = null;
-let velocityArrow = null;
-
-if (DEBUG_PHYSICS) {
-  cannonDebugger = new CannonDebugger(scene, world, {
-    color: 0x00ff00,
-    scale: 1.0
-  });
-  
-  // Crear flecha para visualizar el vector de velocidad
-  velocityArrow = new THREE.ArrowHelper(
-    new THREE.Vector3(0, 0, 0), // Dirección (se actualizará en cada frame)
-    new THREE.Vector3(0, 0, 0), // Origen (se actualizará en cada frame)
-    1, // Longitud base
-    0xff00ff, // Color magenta
-    0.5, // Longitud de la cabeza
-    0.3  // Ancho de la cabeza
-  );
-  scene.add(velocityArrow);
-  
-  console.log('🐛 Debug de física activado');
-  console.log('➡️ Flecha de velocidad: Magenta');
-} 
-
 // Materiales de contacto SIN fricción ni restitución
 const mazeMaterial = new CANNON.Material('maze');
 const sphereMaterial = new CANNON.Material('sphere');
 const contactMaterial = new CANNON.ContactMaterial(mazeMaterial, sphereMaterial, {
   friction: 0.0,      // SIN fricción (deslizamiento perfecto)
   restitution: 0.0    // SIN rebote
-});
+});  
 world.addContactMaterial(contactMaterial); 
+// #endregion Configuración inicial
 
+// #region Laberinto
 // Cargar el laberinto con física automática
 const maze = new Maze(scene, world);
 maze.load('/models/maze.glb', {
@@ -69,9 +49,16 @@ maze.load('/models/maze.glb', {
 }).then(() => {
   // Asignar material al laberinto una vez cargado
   maze.body.material = mazeMaterial;
+  // Si el laberinto creó un techo invisible, asignarle el mismo material
+  if (maze.ceilingBody) {
+    maze.ceilingBody.material = mazeMaterial;
+    console.log('🏗️ Techo invisible recibió el material del laberinto');
+  }
   console.log('🎯 Laberinto listo con', maze.body.shapes.length, 'formas físicas');
 });
+// #endregion Laberinto
 
+// #region Esfera
 // Esfera (visual)
 const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
 const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
@@ -95,7 +82,9 @@ sphereBody.ccdSpeedThreshold = 0.001; // Activa CCD desde velocidades muy bajas
 sphereBody.ccdIterations = 30;        // Iteraciones aumentadas para Trimesh
 
 world.addBody(sphereBody);
+// #endregion Esfera
 
+// #region Camara y control de mouse
 // Posición de la cámara
 camera.position.set(0, 50, 0);
 camera.lookAt(0, 0, 0);
@@ -115,6 +104,14 @@ window.addEventListener('mousemove', (event) => {
 const timeStep = 1 / 60; // 60 FPS - timestep más pequeño
 const maxSubSteps = 20;   // MÁS substeps para Trimesh (CRÍTICO)
 
+// Redimensionar ventana
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+// #endregion Camara y control de mouse
+
 function animate() {
   requestAnimationFrame(animate);
   
@@ -126,7 +123,8 @@ function animate() {
   
   // Simulación con múltiples substeps para evitar atravesamientos
   world.step(timeStep, timeStep, maxSubSteps);
-  
+
+  // Debug de física (solo si está activado)
   // Actualizar debugger de física (solo si está activado)
   if (cannonDebugger) {
     cannonDebugger.update();
@@ -163,9 +161,24 @@ function animate() {
 
 animate();
 
-// Redimensionar ventana
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+// Inicializar herramientas de depuración (una sola vez, antes de animate)
+if (DEBUG_PHYSICS) {
+  cannonDebugger = new CannonDebugger(scene, world, {
+    color: 0x00ff00,
+    scale: 1.0
+  });
+  
+  // Crear flecha para visualizar el vector de velocidad
+  velocityArrow = new THREE.ArrowHelper(
+    new THREE.Vector3(0, 0, 0), // Dirección (se actualizará en cada frame)
+    new THREE.Vector3(0, 0, 0), // Origen (se actualizará en cada frame)
+    1, // Longitud base
+    0xff00ff, // Color magenta
+    0.5, // Longitud de la cabeza
+    0.3  // Ancho de la cabeza
+  );
+  scene.add(velocityArrow);
+  
+  console.log('🐛 Debug de física activado');
+  console.log('➡️ Flecha de velocidad: Magenta');
+}
