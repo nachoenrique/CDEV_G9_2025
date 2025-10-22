@@ -1,5 +1,6 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createCompoundBodyFromModel } from './physics.js';
+import * as THREE from 'three';
 
 /**
  * Clase para gestionar el laberinto (visual y física)
@@ -101,5 +102,86 @@ export class Maze {
    */
   isLoaded() {
     return this.loaded;
+  }
+
+  /**
+   * Aplica un material de vidrio semi-transparente con tinte azul al laberinto
+   */
+  applyGlassMaterial() {
+    if (!this.mesh) {
+      console.warn('⚠️ No se puede aplicar material: laberinto no cargado');
+      return;
+    }
+
+    // Crear material de vidrio con efecto realista y bordes más visibles
+    const glassMaterial = new THREE.MeshPhysicalMaterial({
+      color: 0x88ccff,           // Tinte azul claro
+      metalness: 0.1,            // Poco metálico
+      roughness: 0.05,           // Muy pulido (casi espejo)
+      transparent: true,
+      opacity: 0.5,              // 50% opaco para mejor visibilidad
+      transmission: 0.8,         // Transmisión de luz reducida para más solidez
+      thickness: 1.0,            // Mayor grosor para bordes más visibles
+      envMapIntensity: 2.0,      // Más reflejos del entorno
+      clearcoat: 1.0,            // Capa clara brillante
+      clearcoatRoughness: 0.05,  // Capa clara muy pulida
+      ior: 1.5,                  // Índice de refracción del vidrio
+      reflectivity: 0.7,         // Mayor reflectividad para bordes más visibles
+      side: THREE.DoubleSide,    // Visible desde ambos lados
+      emissive: 0x2244aa,        // Emisión azul suave para resaltar bordes
+      emissiveIntensity: 0.15    // Intensidad de emisión leve
+    });
+
+    // Aplicar el material a todos los meshes del laberinto
+    this.mesh.traverse((child) => {
+      if (child.isMesh) {
+        child.material = glassMaterial;
+        child.castShadow = true;
+        child.receiveShadow = true;
+        
+        // Agregar bordes visibles con LineSegments
+        const edges = new THREE.EdgesGeometry(child.geometry, 15); // 15 grados threshold
+        const lineMaterial = new THREE.LineBasicMaterial({ 
+          color: 0x4488bb,  // Azul más oscuro
+          linewidth: 2,
+          transparent: true,
+          opacity: 0.35
+        });
+        const lineSegments = new THREE.LineSegments(edges, lineMaterial);
+        child.add(lineSegments);
+      }
+    });
+
+    console.log('💎 Material de vidrio con bordes definidos aplicado al laberinto');
+  }
+
+  /**
+   * Restaura el material original del laberinto
+   */
+  restoreOriginalMaterial() {
+    if (!this.mesh) return;
+
+    this.mesh.traverse((child) => {
+      if (child.isMesh) {
+        // Remover todos los LineSegments (bordes) que se hayan agregado
+        const edgesToRemove = [];
+        child.children.forEach((grandChild) => {
+          if (grandChild.isLineSegments) {
+            edgesToRemove.push(grandChild);
+          }
+        });
+        edgesToRemove.forEach((edge) => {
+          child.remove(edge);
+          if (edge.geometry) edge.geometry.dispose();
+          if (edge.material) edge.material.dispose();
+        });
+        
+        // Restaurar propiedades de sombras estándar
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+
+    console.log('🔄 Material original restaurado');
   }
 }
