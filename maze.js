@@ -3,6 +3,9 @@ import { createCompoundBodyFromModel } from './physics.js';
 
 /**
  * Clase para gestionar el laberinto (visual y física)
+ *
+ * Refactor: helper logic is organized into private methods to keep `load`
+ * lightweight and to make it easier to extend (texture/UV helpers, etc.).
  */
 export class Maze {
   constructor(scene, world) {
@@ -15,10 +18,11 @@ export class Maze {
   }
 
   /**
-   * Carga el modelo del laberinto y genera su física automáticamente
-   * @param {string} path - Ruta al archivo GLB del laberinto
-   * @param {Object} options - Opciones de carga (scale, position, rotation)
-   * @returns {Promise} Promesa que se resuelve cuando el laberinto está cargado
+   * Carga el modelo GLB del laberinto y delega configuración/creación de física
+   * a métodos separados.
+   * @param {string} path
+   * @param {Object} options { scale, position, rotation }
+   * @returns {Promise<Maze>}
    */
   load(path, options = {}) {
     const {
@@ -27,38 +31,31 @@ export class Maze {
       rotation = { x: 0, y: 0, z: 0 }
     } = options;
 
-    // Guardar escala
     this.scale = scale;
 
     return new Promise((resolve, reject) => {
       const loader = new GLTFLoader();
-      
       console.log('🔄 Cargando laberinto con escala:', scale);
-      
+
       loader.load(
         path,
         (gltf) => {
-          // Configurar mesh visual
           this.mesh = gltf.scene;
-          this.mesh.scale.set(scale, scale, scale);
-          this.mesh.position.set(position.x, position.y, position.z);
-          this.mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+
+          // Configure visual transform and scene placement
+          this._configureMesh({ scale, position, rotation });
           this.scene.add(this.mesh);
-          
+
           console.log('✅ Modelo del laberinto cargado con escala:', scale);
           console.log('📦 Estructura del modelo:', this.mesh);
-          
-          // IMPORTANTE: Actualizar las matrices antes de crear física
+
+          // Ensure world matrices are up-to-date before generating physics
           this.mesh.updateMatrixWorld(true);
-          
-          // Crear física automáticamente desde la geometría (ya incluye la escala)
-          this.body = createCompoundBodyFromModel(this.mesh, this.world);
-          this.body.position.set(position.x, position.y, position.z);
-          this.world.addBody(this.body);
-          
+
+          // Create the physics representation
+          this._createPhysics(position);
+
           this.loaded = true;
-          
-          console.log('🎮 Física del laberinto generada');
           resolve(this);
         },
         (progress) => {
@@ -73,6 +70,42 @@ export class Maze {
     });
   }
 
+  // ----------------------------- Helpers -----------------------------
+  /**
+   * Configura transformaciones básicas del mesh y cualquier ajuste visual
+   * (por ejemplo, activar sombras si se requiere).
+   * @param {{scale:number, position:{x,y,z}, rotation:{x,y,z}}} opts
+   */
+  _configureMesh(opts) {
+    const { scale, position, rotation } = opts;
+    if (!this.mesh) return;
+    this.mesh.scale.set(scale, scale, scale);
+    this.mesh.position.set(position.x, position.y, position.z);
+    this.mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+
+    // Optional: enable shadows for meshes if the app uses them
+    this.mesh.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = false;
+        child.receiveShadow = true;
+      }
+    });
+  }
+
+  /**
+   * Crea el cuerpo físico compuesto a partir del mesh y lo añade al world.
+   * Se delega en `createCompoundBodyFromModel` que reside en `physics.js`.
+   * @param {{x:number,y:number,z:number}} position
+   */
+  _createPhysics(position) {
+    if (!this.mesh || !this.world) return;
+    this.body = createCompoundBodyFromModel(this.mesh, this.world);
+    this.body.position.set(position.x, position.y, position.z);
+    this.world.addBody(this.body);
+    console.log('🎮 Física del laberinto generada');
+  }
+
+  // --------------------------- Public API ----------------------------
   /**
    * Actualiza la rotación del laberinto (visual y física)
    * @param {number} x - Rotación en eje X
@@ -81,15 +114,8 @@ export class Maze {
    */
   setRotation(x, y, z) {
     if (!this.loaded) return;
-    
-    // Actualizar visual
-    if (this.mesh) {
-      this.mesh.rotation.set(x, y, z);
-    }
-    
-    // Actualizar física - sincronizar posición y rotación
+    if (this.mesh) this.mesh.rotation.set(x, y, z);
     if (this.body) {
-      // Copiar posición del mesh al body
       this.body.position.copy(this.mesh.position);
       this.body.quaternion.setFromEuler(x, y, z);
     }
@@ -97,7 +123,7 @@ export class Maze {
 
   /**
    * Obtiene si el laberinto está cargado
-   * @returns {boolean} True si el laberinto está listo
+   * @returns {boolean}
    */
   isLoaded() {
     return this.loaded;
