@@ -3,182 +3,266 @@ import * as CANNON from 'cannon-es';
 import CannonDebugger from 'cannon-es-debugger';
 import { Maze } from './maze.js';
 
-// #region Configuración inicial
-// Debugger globals
-const DEBUG_PHYSICS = true; // Cambiar a true para ver las formas físicas en verde
-let cannonDebugger = null;
-let velocityArrow = null;
+// Objeto para almacenar todas las variables globales
+const App = {
+    // Configuración inicial
+    scene: null,
+    camera: null,
+    renderer: null,
+    world: null,
+    mazeMaterial: null,
+    sphereMaterial: null,
+    DEBUG_PHYSICS: true, 
+    cannonDebugger: null,
+    velocityArrow: null,
 
-// Escena, cámara y renderizador
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+    // Laberinto
+    maze: null,
 
-// Luz
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(5, 10, 5);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040));
+    // Esfera
+    sphereMesh: null,
+    sphereBody: null,
 
-// Mundo de física con configuración para Trimesh
-const world = new CANNON.World();
-world.gravity.set(0, -30, 0); // Gravedad de la Tierra en m/s²
-world.broadphase = new CANNON.NaiveBroadphase(); // Broadphase más preciso
-world.solver.iterations = 20; // Más iteraciones del solver
-world.allowSleep = false; // Desactivar sleep para objetos críticos
+    // Control de Mouse
+    mouseX: 0,
+    mouseY: 0,
+    maxTilt: Math.PI / 12,
 
-// Materiales de contacto SIN fricción ni restitución
-const mazeMaterial = new CANNON.Material('maze');
-const sphereMaterial = new CANNON.Material('sphere');
-const contactMaterial = new CANNON.ContactMaterial(mazeMaterial, sphereMaterial, {
-  friction: 0.0,      // SIN fricción (deslizamiento perfecto)
-  restitution: 0.0    // SIN rebote
-});  
-world.addContactMaterial(contactMaterial); 
-// #endregion Configuración inicial
+    // Loop de animación
+    timeStep: 1 / 60,
+    maxSubSteps: 20
+};
 
-// #region Laberinto
-// Cargar el laberinto con física automática
-const maze = new Maze(scene, world);
-maze.load('/models/maze.glb', {
-  scale: 0.5,  // Escala aumentada a 2 (más grande)
-  position: { x: 0, y: 0, z: 0 },
-  rotation: { x: 0, y: 0, z: 0 }
-}).then(() => {
-  // Asignar material al laberinto una vez cargado
-  maze.body.material = mazeMaterial;
-  // Si el laberinto creó un techo invisible, asignarle el mismo material
-  if (maze.ceilingBody) {
-    maze.ceilingBody.material = mazeMaterial;
-    console.log('🏗️ Techo invisible recibió el material del laberinto');
-  }
-  console.log('🎯 Laberinto listo con', maze.body.shapes.length, 'formas físicas');
-});
-// #endregion Laberinto
+// #region Métodos de Inicialización
+// --------------------------------------------------------------------------
 
-// #region Esfera
-// Esfera (visual)
-const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMesh3Material);
-sphereMesh.position.set(0, 20, 0);
-scene.add(sphereMesh);
+function setupConfiguracionInicial() {
+    // Escena, cámara y renderizador
+    App.scene = new THREE.Scene();
+    App.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    App.renderer = new THREE.WebGLRenderer({ antialias: true });
+    App.renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(App.renderer.domElement);
 
-// Esfera (física)
-const sphereShape = new CANNON.Sphere(0.5);
-const sphereBody = new CANNON.Body({ 
-  mass: 0.5, // Masa realista para una bola pequeña (500g)
-  material: sphereMaterial,
-  linearDamping: 0.0,  // Sin amortiguación lineal
-  angularDamping: 0.0  // Sin amortiguación angular
-});
-sphereBody.addShape(sphereShape);
-sphereBody.position.set(0, 20, 0);
+    // Luz
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5, 10, 5);
+    App.scene.add(light);
+    App.scene.add(new THREE.AmbientLight(0x404040));
 
-// CCD (Continuous Collision Detection) CRÍTICO para Trimesh
-sphereBody.ccdSpeedThreshold = 0.001; // Activa CCD desde velocidades muy bajas
-sphereBody.ccdIterations = 30;        // Iteraciones aumentadas para Trimesh
+    // Mundo de física con configuración para Trimesh
+    App.world = new CANNON.World();
+    App.world.gravity.set(0, -30, 0); 
+    App.world.broadphase = new CANNON.NaiveBroadphase(); 
+    App.world.solver.iterations = 20; 
+    App.world.allowSleep = false; 
 
-world.addBody(sphereBody);
-// #endregion Esfera
+    // Materiales de contacto SIN fricción ni restitución
+    App.mazeMaterial = new CANNON.Material('maze');
+    App.sphereMaterial = new CANNON.Material('sphere');
+    const contactMaterial = new CANNON.ContactMaterial(App.mazeMaterial, App.sphereMaterial, {
+        friction: 0.0, 
+        restitution: 0.0 
+    }); 
+    App.world.addContactMaterial(contactMaterial); 
+}
 
-// #region Camara y control de mouse
-// Posición de la cámara
-camera.position.set(0, 50, 0);
-camera.lookAt(0, 0, 0);
+function setupLaberinto() {
+    // Cargar el laberinto con física automática
+    App.maze = new Maze(App.scene, App.world);
+    App.maze.load('/models/maze.glb', {
+        scale: 0.5,
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 }
+    }).then(() => {
+        // Asignar material al laberinto una vez cargado
+        App.maze.body.material = App.mazeMaterial;
+        if (App.maze.ceilingBody) {
+            App.maze.ceilingBody.material = App.mazeMaterial;
+            console.log('🏗️ Techo invisible recibió el material del laberinto');
+        }
+        console.log('🎯 Laberinto listo con', App.maze.body.shapes.length, 'formas físicas');
+    });
+}
 
-// Variables para el mouse
-let mouseX = 0;
-let mouseY = 0;
-const maxTilt = Math.PI / 6; // Límite de inclinación: 30 grados
+function setupEsfera() {
+    // Esfera (visual)
+    const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+    const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+    App.sphereMesh = new THREE.Mesh(sphereGeometry, sphereMesh3Material);
+    App.sphereMesh.position.set(0, 20, 0);
+    App.scene.add(App.sphereMesh);
 
-// Seguimiento del mouse
-window.addEventListener('mousemove', (event) => {
-  mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-  mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-});
+    // Esfera (física)
+    const sphereShape = new CANNON.Sphere(0.5);
+    App.sphereBody = new CANNON.Body({ 
+        mass: 0.5, 
+        material: App.sphereMaterial,
+        linearDamping: 0.0, 
+        angularDamping: 0.0 
+    });
+    App.sphereBody.addShape(sphereShape);
+    App.sphereBody.position.set(0, 20, 0);
 
-// Loop de animación con parámetros ajustados para Trimesh
-const timeStep = 1 / 60; // 60 FPS - timestep más pequeño
-const maxSubSteps = 20;   // MÁS substeps para Trimesh (CRÍTICO)
+    // CCD (Continuous Collision Detection) CRÍTICO
+    App.sphereBody.ccdSpeedThreshold = 0.001; 
+    App.sphereBody.ccdIterations = 30; 
 
-// Redimensionar ventana
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-// #endregion Camara y control de mouse
+    App.world.addBody(App.sphereBody);
+}
 
-function animate() {
-  requestAnimationFrame(animate);
-  
-  // Inclinar el laberinto según la posición del mouse
-  const tiltX = -mouseY * maxTilt;
-  const tiltZ = -mouseX * maxTilt;
-  
-  maze.setRotation(tiltX, 0, tiltZ);
-  
-  // Simulación con múltiples substeps para evitar atravesamientos
-  world.step(timeStep, timeStep, maxSubSteps);
+function setupCamaraYControl() {
+    // Posición de la cámara
+    App.camera.position.set(0, 50, 0);
+    App.camera.lookAt(0, 0, 0);
 
-  // Debug de física (solo si está activado)
-  // Actualizar debugger de física (solo si está activado)
-  if (cannonDebugger) {
-    cannonDebugger.update();
-  }
-  
-  // Actualizar vector de velocidad (solo si está activado)
-  if (velocityArrow) {
-    const velocity = sphereBody.velocity;
-    const speed = velocity.length();
-    
-    if (speed > 0.01) { // Solo mostrar si hay movimiento significativo
-      // Posición de la flecha (desde el centro de la esfera)
-      velocityArrow.position.copy(sphereMesh.position);
-      
-      // Dirección normalizada de la velocidad
-      const direction = new THREE.Vector3(velocity.x, velocity.y, velocity.z).normalize();
-      velocityArrow.setDirection(direction);
-      
-      // Longitud AMPLIFICADA proporcional a la velocidad
-      const arrowLength = Math.min(speed * 3, 30); // Amplificado x6 y máximo 30 unidades
-      velocityArrow.setLength(arrowLength, arrowLength * 0.25, arrowLength * 0.2);
-      
-      velocityArrow.visible = true;
-    } else {
-      velocityArrow.visible = false; // Ocultar si está casi quieto
+    // Seguimiento del mouse
+    window.addEventListener('mousemove', (event) => {
+        App.mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+        App.mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+    });
+
+    // Redimensionar ventana
+    window.addEventListener('resize', () => {
+        App.camera.aspect = window.innerWidth / window.innerHeight;
+        App.camera.updateProjectionMatrix();
+        App.renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
+function setupDebug() {
+    if (App.DEBUG_PHYSICS) {
+        App.cannonDebugger = new CannonDebugger(App.scene, App.world, {
+            color: 0x00ff00,
+            scale: 1.0
+        });
+        
+        // Crear flecha para visualizar el vector de velocidad
+        App.velocityArrow = new THREE.ArrowHelper(
+            new THREE.Vector3(0, 0, 0), 
+            new THREE.Vector3(0, 0, 0), 
+            1, 
+            0xff00ff, 
+            0.5, 
+            0.3 
+        );
+        App.scene.add(App.velocityArrow);
+        
+        console.log('🐛 Debug de física activado');
+        console.log('➡️ Flecha de velocidad: Magenta');
     }
-  }
-  
-  sphereMesh.position.copy(sphereBody.position);
-  sphereMesh.quaternion.copy(sphereBody.quaternion);
-  
-  renderer.render(scene, camera);
 }
 
-animate();
+// #endregion Métodos de Inicialización
 
-// Inicializar herramientas de depuración (una sola vez, antes de animate)
-if (DEBUG_PHYSICS) {
-  cannonDebugger = new CannonDebugger(scene, world, {
-    color: 0x00ff00,
-    scale: 1.0
-  });
-  
-  // Crear flecha para visualizar el vector de velocidad
-  velocityArrow = new THREE.ArrowHelper(
-    new THREE.Vector3(0, 0, 0), // Dirección (se actualizará en cada frame)
-    new THREE.Vector3(0, 0, 0), // Origen (se actualizará en cada frame)
-    1, // Longitud base
-    0xff00ff, // Color magenta
-    0.5, // Longitud de la cabeza
-    0.3  // Ancho de la cabeza
-  );
-  scene.add(velocityArrow);
-  
-  console.log('🐛 Debug de física activado');
-  console.log('➡️ Flecha de velocidad: Magenta');
+// #region Métodos de Actualización (dentro de animate)
+// --------------------------------------------------------------------------
+
+/**
+ * Actualiza la rotación del laberinto en base al mouse.
+ */
+function updateInclinacionLaberinto() {
+    const tiltX = -App.mouseY * App.maxTilt;
+    const tiltZ = -App.mouseX * App.maxTilt;
+    App.maze.setRotation(tiltX, 0, tiltZ);
 }
+
+/**
+ * Realiza la simulación de la física (World.step).
+ */
+function updateSimulacionFisica() {
+    // Simulación con múltiples substeps para evitar atravesamientos
+    App.world.step(App.timeStep, App.timeStep, App.maxSubSteps);
+}
+
+/**
+ * Sincroniza las mallas visuales con los cuerpos de la física.
+ */
+function updateSincronizacion() {
+    App.sphereMesh.position.copy(App.sphereBody.position);
+    App.sphereMesh.quaternion.copy(App.sphereBody.quaternion);
+    console.log('🔄 Sincronizando esfera: Posición', App.sphereBody.position, 'Rotación', App.sphereBody.quaternion);
+}
+
+/**
+ * Actualiza el debug de física y la flecha de velocidad.
+ */
+function updateDebug() {
+    // Actualizar debugger de física
+    if (App.cannonDebugger) {
+        App.cannonDebugger.update();
+    }
+    
+    // Actualizar vector de velocidad
+    if (App.velocityArrow) {
+        const velocity = App.sphereBody.velocity;
+        const speed = velocity.length();
+        
+        if (speed > 0.01) { 
+            // Posición de la flecha (desde el centro de la esfera)
+            App.velocityArrow.position.copy(App.sphereMesh.position);
+            
+            // Dirección normalizada de la velocidad
+            const direction = new THREE.Vector3(velocity.x, velocity.y, velocity.z).normalize();
+            App.velocityArrow.setDirection(direction);
+            
+            // Longitud AMPLIFICADA proporcional a la velocidad
+            const arrowLength = Math.min(speed * 3, 30); 
+            App.velocityArrow.setLength(arrowLength, arrowLength * 0.25, arrowLength * 0.2);
+            
+            App.velocityArrow.visible = true;
+        } else {
+            App.velocityArrow.visible = false; 
+        }
+    }
+}
+
+/**
+ * Realiza el renderizado de la escena.
+ */
+function updateRender() {
+    App.renderer.render(App.scene, App.camera);
+}
+
+// #endregion Métodos de Actualización
+
+/**
+ * Función principal de inicialización que llama a todos los setups.
+ */
+function init() {
+    setupConfiguracionInicial();
+    setupLaberinto();
+    setupEsfera();
+    setupCamaraYControl();
+    setupDebug(); 
+    
+    // Iniciar el loop de animación
+    animate();
+}
+
+/**
+ * Bucle de animación principal. Llama a los métodos de actualización.
+ */
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // 1. Lógica de control e inclinación
+    if (App.maze) { // Asegurarse de que el laberinto esté cargado antes de inclinar
+        updateInclinacionLaberinto();
+    }
+    
+    // 2. Simulación de la física
+    updateSimulacionFisica();
+
+    // 3. Debug (si está activado)
+    updateDebug();
+    
+    // 4. Sincronización visual
+    updateSincronizacion();
+    
+    // 5. Renderizado
+    updateRender();
+}
+
+// Llamada para iniciar la aplicación
+init();
