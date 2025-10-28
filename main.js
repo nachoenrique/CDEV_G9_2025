@@ -12,7 +12,7 @@ const App = {
     world: null,
     mazeMaterial: null,
     sphereMaterial: null,
-    DEBUG_PHYSICS: true, 
+    DEBUG_PHYSICS: false, 
     cannonDebugger: null,
     velocityArrow: null,
 
@@ -32,9 +32,6 @@ const App = {
     timeStep: 1 / 60,
     maxSubSteps: 20
 };
-
-// #region Métodos de Inicialización
-// --------------------------------------------------------------------------
 
 function setupConfiguracionInicial() {
     // Escena, cámara y renderizador
@@ -153,11 +150,6 @@ function setupDebug() {
     }
 }
 
-// #endregion Métodos de Inicialización
-
-// #region Métodos de Actualización (dentro de animate)
-// --------------------------------------------------------------------------
-
 /**
  * Actualiza la rotación del laberinto en base al mouse.
  */
@@ -223,8 +215,6 @@ function updateDebug() {
 function updateRender() {
     App.renderer.render(App.scene, App.camera);
 }
-
-// #endregion Métodos de Actualización
 
 /**
  * Función principal de inicialización que llama a todos los setups.
