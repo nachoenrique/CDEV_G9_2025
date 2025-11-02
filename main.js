@@ -210,17 +210,17 @@ function animate() {
   // Solo ejecutar lógica del juego si está en progreso
   if (gameInProgress) {
     // Control SOLO por joystick
-    const inputX = joyY;  // joy dy -> tilt X (adelante/atrás)
-    const inputZ = joyX;  // joy dx -> tilt Z (izquierda/derecha)
+  const inputX = joyY;  // joy dy -> tilt X (adelante/atrás)
+  const inputZ = -joyX;  // joy dx -> tilt Z (izquierda/derecha) (invertido para que A=izquierda, D=derecha)
     
     // Verificar si el joystick está en uso o centrado
     const joystickActive = Math.abs(inputX) > 0.01 || Math.abs(inputZ) > 0.01;
     
     if (joystickActive) {
-      // Joystick activo: aplicar inclinación directamente
+      // Joystick activo: calcular "tilt" interno (pero NO rotamos el laberinto)
       const tiltX = Math.max(-maxTilt, Math.min(maxTilt, -inputX * maxTilt));
       const tiltZ = Math.max(-maxTilt, Math.min(maxTilt, -inputZ * maxTilt));
-      
+
       lastTiltX = tiltX;
       lastTiltZ = tiltZ;
     } else {
@@ -228,17 +228,31 @@ function animate() {
       const returnSpeed = 0.05; // Velocidad de retorno (ajustar para más rápido/lento)
       lastTiltX *= (1 - returnSpeed);
       lastTiltZ *= (1 - returnSpeed);
-      
+
       // Si está muy cerca de 0, forzar a 0
       if (Math.abs(lastTiltX) < 0.001) lastTiltX = 0;
       if (Math.abs(lastTiltZ) < 0.001) lastTiltZ = 0;
     }
-    
-    maze.setRotation(lastTiltX, 0, lastTiltZ);
+
+    // En lugar de rotar el laberinto, aplicamos fuerzas a la esfera según el "tilt"
+    // Esto hace que el mapa permanezca estático y la bola se mueva por física.
+    // Calculamos la aceleración horizontal aproximada que produciría una inclinación
+    const g = Math.abs(world.gravity.y) || 9.82;
+    const mass = sphereBody.mass || 1;
+    // lastTiltX corresponde a inclinación que genera aceleración en Z (adelante/atrás)
+    // lastTiltZ corresponde a inclinación que genera aceleración en X (izquierda/derecha)
+    const accelZ = Math.sin(lastTiltX) * g; // aceleración en Z
+    const accelX = Math.sin(lastTiltZ) * g; // aceleración en X
+
+    const fx = accelX * mass;
+    const fz = accelZ * mass;
+
+    // Aplicar la fuerza en el centro de masa
+    sphereBody.applyForce(new CANNON.Vec3(fx, 0, fz), sphereBody.position);
     
     // Limitar la velocidad máxima de la esfera para evitar atravesar paredes
     const currentSpeed = sphereBody.velocity.length();
-    const maxSpeed = 25; // Velocidad máxima reducida para mejor estabilidad
+  const maxSpeed = 10; // Velocidad máxima reducida para mejor estabilidad (ajustada a 12)
     if (currentSpeed > maxSpeed) {
       const scale = maxSpeed / currentSpeed;
       sphereBody.velocity.x *= scale;
@@ -280,8 +294,7 @@ function animate() {
     sphereMesh.position.copy(sphereBody.position);
     sphereMesh.quaternion.copy(sphereBody.quaternion);
   } else {
-    // Cuando está pausado, mantener la ÚLTIMA inclinación (no resetear a 0)
-    maze.setRotation(lastTiltX, 0, lastTiltZ);
+    // Cuando está pausado, no rotamos el laberinto (permanece estático)
     // NO actualizar la física ni la posición de la esfera cuando está pausado
   }
 

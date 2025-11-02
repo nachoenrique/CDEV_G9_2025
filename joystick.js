@@ -15,10 +15,14 @@ export class Joystick {
     this.pointerId = null;
     this.value = { dx: 0, dy: 0 };
     this.listeners = [];
+  // keyboard state for A,W,S,D
+  this._keys = { w: false, a: false, s: false, d: false };
 
     this._onPointerDown = this._onPointerDown.bind(this);
     this._onPointerMove = this._onPointerMove.bind(this);
     this._onPointerUp = this._onPointerUp.bind(this);
+  this._onKeyDown = this._onKeyDown.bind(this);
+  this._onKeyUp = this._onKeyUp.bind(this);
 
     // Enable pointer events on base
     this.base.style.touchAction = 'none';
@@ -26,6 +30,9 @@ export class Joystick {
     window.addEventListener('pointermove', this._onPointerMove);
     window.addEventListener('pointerup', this._onPointerUp);
     window.addEventListener('pointercancel', this._onPointerUp);
+  // Keyboard controls (A,W,S,D) - allow holding keys instead of pointer
+  window.addEventListener('keydown', this._onKeyDown);
+  window.addEventListener('keyup', this._onKeyUp);
 
     this._updateCenter();
     window.addEventListener('resize', () => this._updateCenter());
@@ -65,6 +72,66 @@ export class Joystick {
     // Animate stick back to center
     this._setStickPosition(0, 0, true);
     this._emit(0, 0);
+  }
+
+  // Keyboard handlers: set directional state and apply as if joystick moved
+  _onKeyDown(e) {
+    // ignore repeated keydown events
+    if (e.repeat) return;
+    const k = e.code || e.key;
+    let changed = false;
+    if (k === 'KeyW' || k === 'w' || k === 'W') { this._keys.w = true; changed = true; }
+    if (k === 'KeyA' || k === 'a' || k === 'A') { this._keys.a = true; changed = true; }
+    if (k === 'KeyS' || k === 's' || k === 'S') { this._keys.s = true; changed = true; }
+    if (k === 'KeyD' || k === 'd' || k === 'D') { this._keys.d = true; changed = true; }
+    if (changed) {
+      // if pointer is active, prefer pointer control
+      if (this.pointerId !== null) return;
+      this._applyKeyboard();
+      e.preventDefault?.();
+    }
+  }
+
+  _onKeyUp(e) {
+    const k = e.code || e.key;
+    let changed = false;
+    if (k === 'KeyW' || k === 'w' || k === 'W') { this._keys.w = false; changed = true; }
+    if (k === 'KeyA' || k === 'a' || k === 'A') { this._keys.a = false; changed = true; }
+    if (k === 'KeyS' || k === 's' || k === 'S') { this._keys.s = false; changed = true; }
+    if (k === 'KeyD' || k === 'd' || k === 'D') { this._keys.d = false; changed = true; }
+    if (changed) {
+      if (this.pointerId !== null) return;
+      this._applyKeyboard();
+      e.preventDefault?.();
+    }
+  }
+
+  _applyKeyboard() {
+    // Map keys to normalized game vector (ndx, ndy) where ndy: up is +1
+    let x = 0, y = 0;
+    if (this._keys.w) y += 1;
+    if (this._keys.s) y -= 1;
+    if (this._keys.d) x += 1;
+    if (this._keys.a) x -= 1;
+
+    if (x === 0 && y === 0) {
+      // release
+      this._setStickPosition(0, 0, true);
+      this._emit(0, 0);
+      return;
+    }
+
+    // normalize vector to length 1 (so diagonals aren't stronger)
+    const len = Math.sqrt(x * x + y * y) || 1;
+    const ndx = x / len;
+    const ndy = y / len;
+
+    // convert normalized to pixel positions used by _setStickPosition
+    const px = ndx * this.maxRadius;
+    const py = -ndy * this.maxRadius; // invert y for screen coords
+
+    this._setStickPosition(px, py, false);
+    this._emit(ndx, ndy);
   }
 
   _applyPointer(clientX, clientY) {
@@ -113,6 +180,8 @@ export class Joystick {
     window.removeEventListener('pointermove', this._onPointerMove);
     window.removeEventListener('pointerup', this._onPointerUp);
     window.removeEventListener('pointercancel', this._onPointerUp);
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('keyup', this._onKeyUp);
   }
 }
 
