@@ -160,6 +160,22 @@
       fill: white;
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
     }
+
+    /* Indicador de modo de cámara */
+    #camera-indicator {
+      position: fixed;
+      left: 20px;
+      top: 20px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.95em;
+      border-radius: 6px;
+      z-index: 1000;
+      pointer-events: none;
+      user-select: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
   </style>
 </head>
 <body>
@@ -168,9 +184,11 @@
     <div id="overlay-content">
       <div id="overlay-title">🎮 Haz CLICK para comenzar</div>
       <div id="overlay-instructions">
-        <div>🕹️ Usa el joystick virtual para mover la bola</div>
+        <div>🕹️ Usa las teclas A,W,D,S para mover la bola</div>
         <div>⏸️ Presiona ESC para pausar</div>
         <div>🔄 Presiona R para reiniciar</div>
+        <div>🎥 Presiona V para cambiar entre vista cenital y tercera persona</div>
+        <div>🖱️ Click derecho + mover mouse para rotar la cámara en tercera persona</div>
       </div>
       <div id="restart-hint"></div>
     </div>
@@ -189,6 +207,9 @@
       <div id="joy-stick"></div>
     </div>
   </div>
+
+  <!-- Indicador de cámara -->
+  <div id="camera-indicator">Cámara: Estática</div>
   
   <script type="module" src="/main.js"></script>
 </body>

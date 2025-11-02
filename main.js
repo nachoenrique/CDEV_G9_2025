@@ -6,7 +6,7 @@ import Joystick from './joystick.js';
 
 // #region Configuración inicial
 // Debugger globals
-const DEBUG_PHYSICS = true; // Cambiar a true para ver las formas físicas en verde
+const DEBUG_PHYSICS = false; // Cambiar a true para ver las formas físicas en verde
 let cannonDebugger = null;
 let velocityArrow = null;
 
@@ -95,9 +95,38 @@ sphereBody.ccdSpeedThreshold = 0.1; // Activa CCD a velocidades muy bajas
 sphereBody.ccdIterations = 30;      // Más iteraciones para mejor detección
 
 world.addBody(sphereBody);
+
+// Prevent bouncing: on collision remove the velocity component along the contact normal
+// This avoids elastic-like reflection while preserving collision response (no passing through)
+{
+  // tmp vector to avoid allocations
+  const _tmp = new CANNON.Vec3();
+  sphereBody.addEventListener('collide', (e) => {
+    try {
+      const contact = e.contact;
+      if (!contact) return;
+
+      // contact.ni is the contact normal (from body i to body j)
+      // We compute the velocity projection along that normal and subtract it
+      // so the sphere won't gain a bounce component along the normal.
+      const normal = contact.ni; // CANNON.Vec3
+      // Compute vn = v . n
+      const v = sphereBody.velocity;
+      const vn = v.x * normal.x + v.y * normal.y + v.z * normal.z;
+      if (vn > 0) {
+        // tmp = normal * vn
+        normal.scale(vn, _tmp);
+        // v = v - tmp
+        v.vsub(_tmp, sphereBody.velocity);
+      }
+    } catch (err) {
+      console.error('Error handling collision:', err);
+    }
+  });
+}
 // #endregion Esfera
 
-// #region Camara y control de mouse
+//region Camara y control de mouse
 // Posición de la cámara
 camera.position.set(0, 50, 0);
 camera.lookAt(0, 0, 0);
@@ -108,6 +137,28 @@ let joyY = 0;
 let lastTiltX = 0; // Guardar última inclinación
 let lastTiltZ = 0; // Guardar última inclinación
 const maxTilt = Math.PI / 8; // Inclinación aumentada: 22.5 grados (antes 18)
+
+// Variables para control de cámara con mouse
+let mouseIsDown = false;
+let mouseX = 0;
+let mouseY = 0;
+const mouseSensitivity = 0.002; // Reducida de 0.003 a 0.001 para un control más suave
+let cameraAngleHorizontal = 0;
+let cameraAngleVertical = Math.PI / 6; // Ángulo inicial vertical (30 grados)
+const minVerticalAngle = 0.1; // Límite superior (casi horizontal)
+const maxVerticalAngle = Math.PI / 2; // Límite inferior (45 grados hacia abajo)
+
+// Cámara: modo y parámetros de tercera persona
+let cameraMode = 'static'; // 'static' | 'thirdperson'
+const cameraIndicator = document.getElementById('camera-indicator');
+const thirdPersonOffset = new THREE.Vector3(0, 0.8, 2.0); // más bajo y más cerca para estar dentro del laberinto
+
+// Raycast para evitar que la cámara atraviese paredes
+const raycaster = new THREE.Raycaster();
+const _tempV3 = new THREE.Vector3(); // para cálculos temporales
+const cameraLerpFactor = 0.18; // suavizado de cámara
+let lastForward = new THREE.Vector3(0, 0, 1); // dirección previa para fallback
+let currentLookAt = new THREE.Vector3(0, 0, 0); // objetivo suavizado para lookAt
 
 // Estado del juego
 let gameInProgress = false;
@@ -141,9 +192,9 @@ function resetGame() {
   console.log('✅ Juego reiniciado');
 }
 
-// Click para iniciar/reanudar
+// Eventos de mouse para control de cámara
 window.addEventListener('mousedown', (event) => {
-  // Solo responder si el overlay está visible
+  // Iniciar juego si el overlay está visible
   if (overlay && !overlay.classList.contains('hidden')) {
     gameInProgress = true;
     overlay.classList.add('hidden');
@@ -151,6 +202,39 @@ window.addEventListener('mousedown', (event) => {
     restartButton.classList.add('active');
     console.log('🎮 Juego iniciado');
   }
+  
+  // Activar control de cámara solo con click derecho en modo tercera persona
+  if (event.button === 2 && cameraMode === 'thirdperson') {
+    mouseIsDown = true;
+    mouseX = event.clientX;
+    mouseY = event.clientY;
+  }
+});
+
+window.addEventListener('mouseup', (event) => {
+  if (event.button === 2) {
+    mouseIsDown = false;
+  }
+});
+
+window.addEventListener('mousemove', (event) => {
+  if (mouseIsDown && cameraMode === 'thirdperson') {
+    const deltaX = event.clientX - mouseX;
+    const deltaY = event.clientY - mouseY;
+    
+    cameraAngleHorizontal -= deltaX * mouseSensitivity;
+    cameraAngleVertical = Math.max(minVerticalAngle,
+      Math.min(maxVerticalAngle,
+        cameraAngleVertical + deltaY * mouseSensitivity));
+    
+    mouseX = event.clientX;
+    mouseY = event.clientY;
+  }
+});
+
+// Prevenir menú contextual del click derecho
+window.addEventListener('contextmenu', (event) => {
+  event.preventDefault();
 });
 
 // Click en el botón de reinicio
@@ -176,6 +260,23 @@ window.addEventListener('keydown', (event) => {
   if ((event.key === 'r' || event.key === 'R')) {
     resetGame();
     console.log('🔄 Reinicio desde teclado (R)');
+  }
+  
+  // V: alternar entre vista estática y tercera persona
+  if (event.key === 'v' || event.key === 'V') {
+    cameraMode = cameraMode === 'static' ? 'thirdperson' : 'static';
+
+    if (cameraIndicator) {
+      cameraIndicator.textContent = cameraMode === 'static' ? 'Cámara: Estática' : 'Cámara: 3ª persona';
+    }
+
+    // Ajuste inmediato si volvemos a estática
+    if (cameraMode === 'static') {
+      camera.position.set(0, 50, 0);
+      camera.lookAt(0, 0, 0);
+    }
+
+    console.log('🎥 Modo de cámara:', cameraMode);
   }
 });
 
@@ -234,25 +335,48 @@ function animate() {
       if (Math.abs(lastTiltZ) < 0.001) lastTiltZ = 0;
     }
 
-    // En lugar de rotar el laberinto, aplicamos fuerzas a la esfera según el "tilt"
-    // Esto hace que el mapa permanezca estático y la bola se mueva por física.
-    // Calculamos la aceleración horizontal aproximada que produciría una inclinación
+    // Calcular fuerzas basadas en la orientación de la cámara en tercera persona
     const g = Math.abs(world.gravity.y) || 9.82;
     const mass = sphereBody.mass || 1;
-    // lastTiltX corresponde a inclinación que genera aceleración en Z (adelante/atrás)
-    // lastTiltZ corresponde a inclinación que genera aceleración en X (izquierda/derecha)
-    const accelZ = Math.sin(lastTiltX) * g; // aceleración en Z
-    const accelX = Math.sin(lastTiltZ) * g; // aceleración en X
-
-    const fx = accelX * mass;
-    const fz = accelZ * mass;
+    
+    let fx = 0, fz = 0;
+    
+    if (cameraMode === 'thirdperson') {
+      // En tercera persona, las fuerzas son relativas a la dirección de la cámara
+      const forward = lastForward.clone(); // Vector hacia donde mira la cámara
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)); // Vector derecha de la cámara
+      
+      // Calcular dirección final combinando los inputs
+      const direction = new THREE.Vector3();
+      
+      // W/S: Movimiento adelante/atrás en dirección de la cámara
+      direction.add(forward.clone().multiplyScalar(-lastTiltX)); // -lastTiltX porque W es negativo
+      
+      // A/D: Movimiento izquierda/derecha perpendicular a la cámara
+      direction.add(right.clone().multiplyScalar(lastTiltZ));
+      
+      // Normalizar y aplicar fuerza si hay input
+      const inputMagnitude = Math.sqrt(lastTiltX * lastTiltX + lastTiltZ * lastTiltZ);
+      if (inputMagnitude > 0.001) {
+        direction.normalize();
+        direction.multiplyScalar(inputMagnitude * g * mass);
+        fx = direction.x;
+        fz = direction.z;
+      }
+    } else {
+      // En otros modos, mantener el comportamiento original
+      const accelZ = Math.sin(lastTiltX) * g;
+      const accelX = Math.sin(lastTiltZ) * g;
+      fx = accelX * mass;
+      fz = accelZ * mass;
+    }
 
     // Aplicar la fuerza en el centro de masa
     sphereBody.applyForce(new CANNON.Vec3(fx, 0, fz), sphereBody.position);
     
     // Limitar la velocidad máxima de la esfera para evitar atravesar paredes
     const currentSpeed = sphereBody.velocity.length();
-  const maxSpeed = 10; // Velocidad máxima reducida para mejor estabilidad (ajustada a 12)
+  const maxSpeed = 5; // Velocidad máxima reducida para mejor estabilidad (ajustada a 12)
     if (currentSpeed > maxSpeed) {
       const scale = maxSpeed / currentSpeed;
       sphereBody.velocity.x *= scale;
@@ -293,6 +417,63 @@ function animate() {
     // Actualizar posición de la esfera visual SOLO cuando el juego está activo
     sphereMesh.position.copy(sphereBody.position);
     sphereMesh.quaternion.copy(sphereBody.quaternion);
+    
+    // Actualizar cámara según el modo seleccionado
+    if (cameraMode === 'thirdperson') {
+      // Calcular la posición de la cámara usando los ángulos del mouse
+      const horizontalDistance = thirdPersonOffset.z * Math.cos(cameraAngleVertical);
+      
+      // Calcular offset de la cámara usando ángulos esféricos
+      const cameraOffset = new THREE.Vector3(
+        horizontalDistance * Math.sin(cameraAngleHorizontal),
+        thirdPersonOffset.z * Math.sin(cameraAngleVertical),
+        horizontalDistance * Math.cos(cameraAngleHorizontal)
+      );
+
+      // Actualizar lastForward para el movimiento relativo a la cámara
+      lastForward.set(
+        -Math.sin(cameraAngleHorizontal),
+        0,
+        -Math.cos(cameraAngleHorizontal)
+      );
+      lastForward.normalize();
+
+      // Posición deseada = posición de la bola + offset calculado
+      const desired = new THREE.Vector3().copy(sphereMesh.position).add(cameraOffset);
+      
+      // Raycast para evitar atravesar paredes
+      _tempV3.copy(desired).sub(sphereMesh.position);
+      const distance = _tempV3.length();
+      _tempV3.normalize();
+      
+      raycaster.ray.origin.copy(sphereMesh.position);
+      raycaster.ray.direction.copy(_tempV3);
+      
+      const intersects = raycaster.intersectObject(maze.mesh, true);
+      
+      if (intersects.length > 0 && intersects[0].distance < distance) {
+        const hitPoint = intersects[0].point;
+        _tempV3.multiplyScalar(-0.2);
+        hitPoint.add(_tempV3);
+        camera.position.lerp(hitPoint, cameraLerpFactor);
+      } else {
+        camera.position.lerp(desired, cameraLerpFactor);
+      }
+
+      // Punto de mira adelante de la bola en la dirección de movimiento
+      const lookAtPoint = new THREE.Vector3()
+        .copy(sphereMesh.position)
+        .add(lastForward.clone().multiplyScalar(2));
+      
+      // Suavizar el punto de mira para evitar movimientos bruscos
+      currentLookAt.lerp(lookAtPoint, cameraLerpFactor);
+      camera.lookAt(currentLookAt);
+    } else {
+      // volver suavemente a vista estática cenital
+      const staticTarget = new THREE.Vector3(0, 50, 0);
+      camera.position.lerp(staticTarget, 0.06);
+      camera.lookAt(0, 0, 0);
+    }
   } else {
     // Cuando está pausado, no rotamos el laberinto (permanece estático)
     // NO actualizar la física ni la posición de la esfera cuando está pausado
