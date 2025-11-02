@@ -76,7 +76,7 @@ maze.load('/models/maze.glb', {
 const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
 const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
 const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMesh3Material);
-sphereMesh.position.set(0, 5, 0); // Empezar más bajo para menos impacto inicial
+sphereMesh.position.set(-18.45, 2.50, 0.13); // Posición inicial solicitada
 scene.add(sphereMesh);
 
 // Esfera (física)
@@ -88,7 +88,7 @@ const sphereBody = new CANNON.Body({
   angularDamping: 0.01  // Amortiguamiento mínimo
 });
 sphereBody.addShape(sphereShape);
-sphereBody.position.set(0, 5, 0); // Empezar más bajo
+sphereBody.position.set(-18.45, 2.50, 0.13); // Posición inicial solicitada
 
 // CCD (Continuous Collision Detection) MEJORADO - CRÍTICO para evitar atravesar paredes
 sphereBody.ccdSpeedThreshold = 0.1; // Activa CCD a velocidades muy bajas
@@ -173,7 +173,7 @@ function resetGame() {
   console.log('🔄 Reiniciando juego...');
   
   // Resetear posición y velocidades de la esfera
-  sphereBody.position.set(0, 5, 0); // Altura más baja
+  sphereBody.position.set(-18.45, 2.50, 0.13); // Posición inicial solicitada
   sphereBody.velocity.set(0, 0, 0);
   sphereBody.angularVelocity.set(0, 0, 0);
   sphereBody.quaternion.set(0, 0, 0, 1);
@@ -400,10 +400,10 @@ function animate() {
     }
     
     // Ajustar límites según la escala del laberinto (0.5 = pequeño)
-    if (sphereBody.position.y < -3 || distanceFromCenter > 25) {
+  if (sphereBody.position.y < -3 || distanceFromCenter > 25) {
       console.log('⚠️ La esfera se salió del área, reseteando...');
       console.log('📍 Posición:', sphereBody.position, 'Distancia:', distanceFromCenter);
-      sphereBody.position.set(0, 5, 0); // Altura más baja
+  sphereBody.position.set(-18.45, 2.50, 0.13); // Posición inicial solicitada
       sphereBody.velocity.set(0, 0, 0);
       sphereBody.angularVelocity.set(0, 0, 0);
       sphereBody.quaternion.set(0, 0, 0, 1);
