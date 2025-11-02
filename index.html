@@ -176,6 +176,26 @@
       user-select: none;
       box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
+
+    /* Indicador debug de cámara (oculto por defecto) */
+    #debug-camera {
+      position: fixed;
+      left: 20px;
+      top: 60px;
+      padding: 8px 12px;
+      background: rgba(0,0,0,0.65);
+      color: #fff;
+      font-size: 0.85em;
+      border-radius: 6px;
+      z-index: 1000;
+      pointer-events: none;
+      user-select: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      max-width: 320px;
+      display: none;
+      white-space: pre-line;
+    }
+    #debug-camera.visible { display: block; }
   </style>
 </head>
 <body>
@@ -210,6 +230,8 @@
 
   <!-- Indicador de cámara -->
   <div id="camera-indicator">Cámara: Estática</div>
+  <!-- Indicador debug (posicion de la camara) -->
+  <div id="debug-camera" aria-hidden="true"></div>
   
   <script type="module" src="/main.js"></script>
 </body>

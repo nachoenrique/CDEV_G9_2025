@@ -275,6 +275,28 @@ window.addEventListener('keydown', (event) => {
       camera.position.set(0, 50, 0);
       camera.lookAt(0, 0, 0);
     }
+    // Si entramos en tercera persona, posicionar la cámara y dirección solicitadas
+    if (cameraMode === 'thirdperson') {
+      // Posición solicitada para la cámara
+      camera.position.set(-19.98, 3.78, 0.13);
+
+      // Dirección solicitada (vector de dirección)
+      const desiredDir = new THREE.Vector3(0.94, 1, 0.00).normalize();
+
+      // Hacer que la cámara mire en la dirección deseada (mirando hacia un punto adelante)
+      const lookAtPoint = new THREE.Vector3().copy(camera.position).add(desiredDir);
+      camera.lookAt(lookAtPoint);
+
+      // Actualizar lastForward con la proyección horizontal de desiredDir para mantener controles coherentes
+      lastForward.copy(desiredDir);
+      lastForward.y = 0;
+      if (lastForward.lengthSq() === 0) lastForward.set(0, 0, 1);
+      lastForward.normalize();
+
+      // Ajustar los ángulos usados por el sistema de cámara para evitar sobrescrituras bruscas
+      cameraAngleHorizontal = Math.atan2(-lastForward.x, -lastForward.z);
+      cameraAngleVertical = Math.asin(THREE.MathUtils.clamp(desiredDir.y, -0.99, 0.99));
+    }
 
     console.log('🎥 Modo de cámara:', cameraMode);
   }
