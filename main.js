@@ -19,9 +19,40 @@ const App = {
     // Laberinto
     maze: null,
 
-    // Esfera
-    sphereMesh: null,
-    sphereBody: null,
+    // Piso de colisión
+    groundBody: null,
+    groundMesh: null, // Para visualización en debug
+    groundOffsetY:3, // Offset en Y para ajustar la altura del plano sobre la base del laberinto
+
+    // Paredes de contención
+    walls: [], // Array para almacenar los cuerpos físicos de las paredes
+    wallMeshes: [], // Array para las visualizaciones debug
+    wallOriginalQuaternions: [], // Quaternions originales de cada pared
+    wallDistance: 19, // Distancia desde el centro hasta cada pared
+    wallHeight: 10, // Altura de las paredes
+    wallThickness: 1, // Grosor de las paredes
+
+    // Esferas (array para múltiples pelotas)
+    spheres: [], // Array de objetos { mesh, body, color }
+    
+    // Configuración de pelotas
+    ballsConfig: [
+        { position: { x: 5, y: 20, z: 5 }, color: 0xff0000, radius: 0.5 },      // Roja
+        { position: { x: -5, y: 20, z: 5 }, color: 0x00ff00, radius: 0.5 },     // Verde
+        { position: { x: 5, y: 20, z: -5 }, color: 0x0000ff, radius: 0.5 },     // Azul
+        { position: { x: -5, y: 20, z: -5 }, color: 0xffff00, radius: 0.5 }       // Amarilla
+    ],
+
+    // Zonas de objetivo (rojas que cambian a verde)
+    zonesConfig: [
+        { position: { x: 12, y: 3.5, z: 12 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1: Noreste
+        { position: { x: 12, y: 3.5, z: -12 }, size: { width: 3, height: 1, depth: 3 } },  // Zona 2: Sureste
+        { position: { x: -12, y: 3.5, z: -12 }, size: { width: 3, height: 1, depth: 3 } }, // Zona 3: Suroeste
+        { position: { x: -12, y: 3.5, z: 12 }, size: { width: 3, height: 1, depth: 3 } }   // Zona 4: Noroeste
+    ],
+    zones: [], // Array de objetos { mesh, body, isGreen }
+    zoneOriginalPositions: [], // Posiciones originales de las zonas (para sincronización con laberinto)
+    allZonesGreen: false, // Variable para condición de victoria
 
     // Control de Mouse
     mouseX: 0,
@@ -82,30 +113,187 @@ function setupLaberinto() {
     });
 }
 
-function setupEsfera() {
-    // Esfera (visual)
-    const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-    const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    App.sphereMesh = new THREE.Mesh(sphereGeometry, sphereMesh3Material);
-    App.sphereMesh.position.set(0, 20, 0);
-    App.scene.add(App.sphereMesh);
-
-    // Esfera (física)
-    const sphereShape = new CANNON.Sphere(0.5);
-    App.sphereBody = new CANNON.Body({ 
-        mass: 0.5, 
-        material: App.sphereMaterial,
-        linearDamping: 0.0, 
-        angularDamping: 0.0 
+function setupPisoColision() {
+    // Crear un plano de colisión infinito para evitar que la esfera atraviese el piso
+    const groundShape = new CANNON.Plane();
+    App.groundBody = new CANNON.Body({ 
+        mass: 0, // Masa 0 = objeto estático
+        material: App.mazeMaterial
     });
-    App.sphereBody.addShape(sphereShape);
-    App.sphereBody.position.set(0, 20, 0);
+    App.groundBody.addShape(groundShape);
+    
+    // Rotar el plano para que mire hacia arriba (por defecto mira en Z)
+    App.groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+    
+    // Posicionar ligeramente por debajo del nivel 0 del laberinto
+    App.groundBody.position.set(0, 0, 0);
+    
+    App.world.addBody(App.groundBody);
+    console.log('🟢 Piso de colisión creado en Y =', App.groundBody.position.y);
+    
+    // Opcional: Crear visualización del plano para debug
+    if (App.DEBUG_PHYSICS) {
+        const planeSize = 100; // Tamaño grande para cubrir toda el área
+        const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const planeMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 0.3,
+            side: THREE.DoubleSide
+        });
+        App.groundMesh = new THREE.Mesh(planeGeometry, planeMaterial);
+        App.groundMesh.rotation.x = -Math.PI / 2;
+        App.groundMesh.position.copy(App.groundBody.position);
+        App.scene.add(App.groundMesh);
+        console.log('👁️ Plano visual de debug agregado (verde transparente)');
+    }
+}
 
-    // CCD (Continuous Collision Detection) CRÍTICO
-    App.sphereBody.ccdSpeedThreshold = 0.001; 
-    App.sphereBody.ccdIterations = 30; 
+function setupParedes() {
+    // Configuración de las 4 paredes usando planos (Norte, Sur, Este, Oeste)
+    // Los planos de Cannon.js por defecto miran en el eje Z negativo
+    const wallConfigs = [
+        { name: 'Norte', position: { x: 0, y: 0, z: -App.wallDistance }, rotation: { x: 0, y: 0, z: 0 } },           // Mira hacia +Z
+        { name: 'Sur', position: { x: 0, y: 0, z: App.wallDistance }, rotation: { x: 0, y: Math.PI, z: 0 } },       // Mira hacia -Z (paralelo a Norte)
+        { name: 'Este', position: { x: App.wallDistance, y: 0, z: 0 }, rotation: { x: 0, y: -Math.PI / 2, z: 0 } }, // Mira hacia -X (perpendicular)
+        { name: 'Oeste', position: { x: -App.wallDistance, y: 0, z: 0 }, rotation: { x: 0, y: Math.PI / 2, z: 0 } } // Mira hacia +X (paralelo a Este)
+    ];
 
-    App.world.addBody(App.sphereBody);
+    wallConfigs.forEach(config => {
+        // Crear plano físico (infinito)
+        const wallShape = new CANNON.Plane();
+        
+        const wallBody = new CANNON.Body({
+            mass: 0, // Estático
+            material: App.mazeMaterial
+        });
+        wallBody.addShape(wallShape);
+        wallBody.position.set(config.position.x, config.position.y, config.position.z);
+        wallBody.quaternion.setFromEuler(config.rotation.x, config.rotation.y, config.rotation.z);
+        
+        App.world.addBody(wallBody);
+        App.walls.push(wallBody);
+        
+        // Guardar el quaternion original de la pared para mantener su orientación relativa
+        const originalQuat = new CANNON.Quaternion();
+        originalQuat.copy(wallBody.quaternion);
+        App.wallOriginalQuaternions.push(originalQuat);
+        
+        // Crear visualización debug con planos de Three.js
+        if (App.DEBUG_PHYSICS) {
+            const planeSize = App.wallDistance * 2; // Tamaño del plano visual
+            const wallGeometry = new THREE.PlaneGeometry(planeSize, App.wallHeight);
+            const wallMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.DoubleSide
+            });
+            const wallMesh = new THREE.Mesh(wallGeometry, wallMaterial);
+            wallMesh.position.copy(wallBody.position);
+            wallMesh.quaternion.copy(wallBody.quaternion);
+            App.scene.add(wallMesh);
+            App.wallMeshes.push(wallMesh);
+        }
+        
+        console.log(`🧱 Pared ${config.name} creada en posición:`, config.position);
+    });
+    
+    console.log(`✅ ${App.walls.length} paredes de contención creadas (planos infinitos)`);
+}
+
+function setupEsfera() {
+    // Crear múltiples esferas según la configuración
+    App.ballsConfig.forEach((config, index) => {
+        // Esfera (visual)
+        const sphereGeometry = new THREE.SphereGeometry(config.radius, 32, 32);
+        const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: config.color });
+        const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMesh3Material);
+        sphereMesh.position.set(config.position.x, config.position.y, config.position.z);
+        App.scene.add(sphereMesh);
+
+        // Esfera (física)
+        const sphereShape = new CANNON.Sphere(config.radius);
+        const sphereBody = new CANNON.Body({ 
+            mass: 0.5, 
+            material: App.sphereMaterial,
+            linearDamping: 0.0, 
+            angularDamping: 0.0 
+        });
+        sphereBody.addShape(sphereShape);
+        sphereBody.position.set(config.position.x, config.position.y, config.position.z);
+
+        // CCD (Continuous Collision Detection) CRÍTICO
+        sphereBody.ccdSpeedThreshold = 0.001; 
+        sphereBody.ccdIterations = 30; 
+
+        App.world.addBody(sphereBody);
+        
+        // Guardar en el array de esferas
+        App.spheres.push({
+            mesh: sphereMesh,
+            body: sphereBody,
+            color: config.color
+        });
+        
+        console.log(`⚽ Pelota ${index + 1} creada - Color: 0x${config.color.toString(16).padStart(6, '0')}, Posición: (${config.position.x}, ${config.position.y}, ${config.position.z})`);
+    });
+    
+    console.log(`✅ ${App.spheres.length} pelotas creadas`);
+}
+
+function setupZonasObjetivo() {
+    // Crear las 4 zonas de objetivo según la configuración
+    App.zonesConfig.forEach((config, index) => {
+        // Crear caja visual (roja inicialmente)
+        const zoneGeometry = new THREE.BoxGeometry(
+            config.size.width,
+            config.size.height,
+            config.size.depth
+        );
+        const zoneMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff0000, // Rojo inicial
+            transparent: true,
+            opacity: 0.6
+        });
+        const zoneMesh = new THREE.Mesh(zoneGeometry, zoneMaterial);
+        zoneMesh.position.set(config.position.x, config.position.y, config.position.z);
+        App.scene.add(zoneMesh);
+
+        // Crear body físico como sensor (sin colisión física)
+        const zoneShape = new CANNON.Box(new CANNON.Vec3(
+            config.size.width / 2,
+            config.size.height / 2,
+            config.size.depth / 2
+        ));
+        const zoneBody = new CANNON.Body({
+            mass: 0, // Estático
+            isTrigger: true, // Sensor
+            collisionResponse: false // No afecta físicamente a otros objetos
+        });
+        zoneBody.addShape(zoneShape);
+        zoneBody.position.set(config.position.x, config.position.y, config.position.z);
+        App.world.addBody(zoneBody);
+
+        // Guardar zona con su estado
+        App.zones.push({
+            mesh: zoneMesh,
+            body: zoneBody,
+            isGreen: false,
+            material: zoneMaterial
+        });
+
+        // Guardar la posición original para sincronización con el laberinto
+        App.zoneOriginalPositions.push({
+            x: config.position.x,
+            y: config.position.y,
+            z: config.position.z
+        });
+
+        console.log(`🎯 Zona ${index + 1} creada en posición: (${config.position.x}, ${config.position.y}, ${config.position.z})`);
+    });
+
+    console.log(`✅ ${App.zones.length} zonas de objetivo creadas`);
 }
 
 function setupCamaraYControl() {
@@ -157,6 +345,98 @@ function updateInclinacionLaberinto() {
     const tiltX = -App.mouseY * App.maxTilt;
     const tiltZ = -App.mouseX * App.maxTilt;
     App.maze.setRotation(tiltX, 0, tiltZ);
+    
+    // Sincronizar el piso de colisión con el laberinto (posición y rotación)
+    if (App.groundBody && App.maze.mesh) {
+        // Copiar la posición del laberinto y aplicar offset en Y
+        App.groundBody.position.copy(App.maze.mesh.position);
+        App.groundBody.position.y += App.groundOffsetY; // Ajuste vertical
+        
+        // Copiar el quaternion del laberinto y aplicar el offset del plano
+        const mazeQuat = new CANNON.Quaternion();
+        mazeQuat.copy(App.maze.mesh.quaternion);
+        
+        // Quaternion para rotar -90° en X (plano horizontal)
+        const planeOffset = new CANNON.Quaternion();
+        planeOffset.setFromEuler(-Math.PI / 2, 0, 0);
+        
+        // Combinar ambas rotaciones
+        App.groundBody.quaternion.copy(mazeQuat.mult(planeOffset));
+        
+        // Actualizar visualización debug si existe
+        if (App.groundMesh) {
+            App.groundMesh.position.copy(App.groundBody.position);
+            App.groundMesh.quaternion.copy(App.groundBody.quaternion);
+        }
+    }
+    
+    // Sincronizar las paredes con el laberinto
+    if (App.walls.length > 0 && App.maze.mesh) {
+        // Configuración de las posiciones originales de las paredes
+        const wallOriginalPositions = [
+            { x: 0, y: 0, z: -App.wallDistance }, // Norte
+            { x: 0, y: 0, z: App.wallDistance },  // Sur
+            { x: App.wallDistance, y: 0, z: 0 },  // Este
+            { x: -App.wallDistance, y: 0, z: 0 }  // Oeste
+        ];
+        
+        App.walls.forEach((wall, index) => {
+            // Crear vector de posición original
+            const originalPos = new THREE.Vector3(
+                wallOriginalPositions[index].x,
+                wallOriginalPositions[index].y + App.groundOffsetY,
+                wallOriginalPositions[index].z
+            );
+            
+            // Aplicar la rotación del laberinto a la posición
+            originalPos.applyQuaternion(App.maze.mesh.quaternion);
+            
+            // Aplicar la posición del laberinto
+            originalPos.add(App.maze.mesh.position);
+            
+            // Actualizar posición de la pared
+            wall.position.copy(originalPos);
+            
+            // Combinar la rotación del laberinto con la rotación original de la pared
+            const mazeQuat = new CANNON.Quaternion();
+            mazeQuat.copy(App.maze.mesh.quaternion);
+            
+            // Multiplicar el quaternion del laberinto con el quaternion original de la pared
+            wall.quaternion.copy(mazeQuat.mult(App.wallOriginalQuaternions[index]));
+            
+            // Actualizar visualización debug si existe
+            if (App.wallMeshes[index]) {
+                App.wallMeshes[index].position.copy(wall.position);
+                App.wallMeshes[index].quaternion.copy(wall.quaternion);
+            }
+        });
+    }
+
+    // Sincronizar las zonas de objetivo con el laberinto
+    if (App.zones.length > 0 && App.maze.mesh) {
+        App.zones.forEach((zone, index) => {
+            // Crear vector de posición original
+            const originalPos = new THREE.Vector3(
+                App.zoneOriginalPositions[index].x,
+                App.zoneOriginalPositions[index].y,
+                App.zoneOriginalPositions[index].z
+            );
+            
+            // Aplicar la rotación del laberinto a la posición
+            originalPos.applyQuaternion(App.maze.mesh.quaternion);
+            
+            // Aplicar la posición del laberinto
+            originalPos.add(App.maze.mesh.position);
+            
+            // Actualizar posición de la zona (visual y física)
+            zone.mesh.position.copy(originalPos);
+            zone.body.position.copy(originalPos);
+            
+            // Aplicar la rotación del laberinto a la zona
+            zone.mesh.quaternion.copy(App.maze.mesh.quaternion);
+            zone.body.quaternion.copy(App.maze.mesh.quaternion);
+        });
+    }
 }
 
 /**
@@ -171,9 +451,88 @@ function updateSimulacionFisica() {
  * Sincroniza las mallas visuales con los cuerpos de la física.
  */
 function updateSincronizacion() {
-    App.sphereMesh.position.copy(App.sphereBody.position);
-    App.sphereMesh.quaternion.copy(App.sphereBody.quaternion);
-    console.log('🔄 Sincronizando esfera: Posición', App.sphereBody.position, 'Rotación', App.sphereBody.quaternion);
+    // Sincronizar todas las esferas
+    App.spheres.forEach((sphere, index) => {
+        sphere.mesh.position.copy(sphere.body.position);
+        sphere.mesh.quaternion.copy(sphere.body.quaternion);
+    });
+}
+
+/**
+ * Actualiza el estado de las zonas de objetivo.
+ * Verifica colisiones con las pelotas y cambia color a verde.
+ * Cuando todas las zonas son verdes, activa la condición de victoria.
+ */
+function updateZonasObjetivo() {
+    // Verificar cada zona
+    App.zones.forEach((zone, zoneIndex) => {
+        // Asumir que no hay colisión inicialmente
+        let hasCollision = false;
+
+        // Verificar colisión con cada pelota usando AABB overlap
+        App.spheres.forEach((sphere) => {
+            // Calcular los límites de la zona (AABB)
+            const zoneMin = {
+                x: zone.body.position.x - zone.body.shapes[0].halfExtents.x,
+                y: zone.body.position.y - zone.body.shapes[0].halfExtents.y,
+                z: zone.body.position.z - zone.body.shapes[0].halfExtents.z
+            };
+            const zoneMax = {
+                x: zone.body.position.x + zone.body.shapes[0].halfExtents.x,
+                y: zone.body.position.y + zone.body.shapes[0].halfExtents.y,
+                z: zone.body.position.z + zone.body.shapes[0].halfExtents.z
+            };
+
+            // Calcular los límites de la esfera
+            const sphereRadius = sphere.body.shapes[0].radius;
+            const sphereMin = {
+                x: sphere.body.position.x - sphereRadius,
+                y: sphere.body.position.y - sphereRadius,
+                z: sphere.body.position.z - sphereRadius
+            };
+            const sphereMax = {
+                x: sphere.body.position.x + sphereRadius,
+                y: sphere.body.position.y + sphereRadius,
+                z: sphere.body.position.z + sphereRadius
+            };
+
+            // Verificar overlap en los 3 ejes
+            const overlapX = sphereMax.x >= zoneMin.x && sphereMin.x <= zoneMax.x;
+            const overlapY = sphereMax.y >= zoneMin.y && sphereMin.y <= zoneMax.y;
+            const overlapZ = sphereMax.z >= zoneMin.z && sphereMin.z <= zoneMax.z;
+
+            // Si hay overlap en los 3 ejes, hay colisión
+            if (overlapX && overlapY && overlapZ) {
+                hasCollision = true;
+            }
+        });
+
+        // Actualizar el estado de la zona basado en la colisión
+        if (hasCollision && !zone.isGreen) {
+            // Cambiar a verde
+            zone.material.color.setHex(0x00ff00);
+            zone.isGreen = true;
+            console.log(`✅ Zona ${zoneIndex + 1} activada (verde)`);
+        } else if (!hasCollision && zone.isGreen) {
+            // Cambiar a rojo
+            zone.material.color.setHex(0xff0000);
+            zone.isGreen = false;
+            console.log(`🔴 Zona ${zoneIndex + 1} desactivada (rojo)`);
+        }
+    });
+
+    // Verificar si todas las zonas son verdes
+    const allGreen = App.zones.every(zone => zone.isGreen);
+    
+    // Actualizar variable de condición de victoria
+    if (allGreen && !App.allZonesGreen) {
+        App.allZonesGreen = true;
+        console.log('🎉 ¡TODAS LAS ZONAS ESTÁN VERDES! Condición de victoria activada.');
+    } else if (!allGreen && App.allZonesGreen) {
+        // Resetear condición de victoria si alguna zona vuelve a rojo
+        App.allZonesGreen = false;
+        console.log('⚠️ Condición de victoria desactivada (no todas las zonas están verdes)');
+    }
 }
 
 /**
@@ -185,14 +544,14 @@ function updateDebug() {
         App.cannonDebugger.update();
     }
     
-    // Actualizar vector de velocidad
-    if (App.velocityArrow) {
-        const velocity = App.sphereBody.velocity;
+    // Actualizar vector de velocidad (solo para la primera pelota)
+    if (App.velocityArrow && App.spheres.length > 0) {
+        const velocity = App.spheres[0].body.velocity;
         const speed = velocity.length();
         
         if (speed > 0.01) { 
             // Posición de la flecha (desde el centro de la esfera)
-            App.velocityArrow.position.copy(App.sphereMesh.position);
+            App.velocityArrow.position.copy(App.spheres[0].mesh.position);
             
             // Dirección normalizada de la velocidad
             const direction = new THREE.Vector3(velocity.x, velocity.y, velocity.z).normalize();
@@ -221,8 +580,11 @@ function updateRender() {
  */
 function init() {
     setupConfiguracionInicial();
+    setupPisoColision(); // Piso de colisión para evitar que la esfera traspase
+    setupParedes(); // Paredes de contención para evitar que la esfera salga volando
     setupLaberinto();
     setupEsfera();
+    setupZonasObjetivo(); // Zonas de objetivo rojas que cambian a verde
     setupCamaraYControl();
     setupDebug(); 
     
@@ -244,13 +606,16 @@ function animate() {
     // 2. Simulación de la física
     updateSimulacionFisica();
 
-    // 3. Debug (si está activado)
+    // 3. Actualizar zonas de objetivo
+    updateZonasObjetivo();
+
+    // 4. Debug (si está activado)
     updateDebug();
     
-    // 4. Sincronización visual
+    // 5. Sincronización visual
     updateSincronizacion();
     
-    // 5. Renderizado
+    // 6. Renderizado
     updateRender();
 }
 
