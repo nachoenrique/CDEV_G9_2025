@@ -1,5 +1,29 @@
+import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createCompoundBodyFromModel } from './physics.js';
+
+/**
+ * Centra un objeto 3D en el origen de la escena (0, 0, 0)
+ * basándose en su centro geométrico (BoundingBox).
+ * @param {THREE.Object3D} model - El modelo 3D (ej: gltf.scene) a centrar
+ * @returns {THREE.Vector3} El vector de offset aplicado (para debug)
+ */
+function centerModel(model) {
+    const box = new THREE.Box3().setFromObject(model);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    
+    // Ajustar la posición del modelo restando el centro
+    model.position.sub(center);
+    
+    console.log('📐 Modelo centrado. Offset aplicado:', {
+        x: center.x.toFixed(2),
+        y: center.y.toFixed(2),
+        z: center.z.toFixed(2)
+    });
+    
+    return center;
+}
 
 /**
  * Clase para gestionar el laberinto (visual y física)
@@ -15,6 +39,7 @@ export class Maze {
     this.body = null;
     this.loaded = false;
     this.scale = 1;
+    this.centerOffset = null; // Guarda el offset de centrado
   }
 
   /**
@@ -40,10 +65,52 @@ export class Maze {
       loader.load(
         path,
         (gltf) => {
-          this.mesh = gltf.scene;
+          const loadedMesh = gltf.scene;
 
-          // Configure visual transform and scene placement
-          this._configureMesh({ scale, position, rotation });
+          // PASO 1: Aplicar escala ANTES de calcular bounding box
+          loadedMesh.scale.set(scale, scale, scale);
+          loadedMesh.updateMatrixWorld(true);
+          
+          // PASO 2: Calcular bounding box y centro geométrico
+          const box = new THREE.Box3().setFromObject(loadedMesh);
+          const center = new THREE.Vector3();
+          box.getCenter(center);
+          
+          // PASO 3: Crear Group como contenedor (este será el pivote correcto)
+          const pivotGroup = new THREE.Group();
+          
+          // PASO 4: Offset del mesh para centrar pivote en (x_center, y_min, z_center)
+          const offsetX = -center.x;  // Centrar en X
+          const offsetY = -box.min.y; // Base del modelo en Y=0
+          const offsetZ = -center.z;  // Centrar en Z
+          
+          loadedMesh.position.set(offsetX, offsetY, offsetZ);
+          
+          // PASO 5: Añadir mesh al Group
+          pivotGroup.add(loadedMesh);
+          
+          // PASO 6: El Group es ahora nuestro mesh principal
+          this.mesh = pivotGroup;
+          this.centerOffset = new THREE.Vector3(center.x, box.min.y, center.z);
+          
+          console.log('📐 Pivote configurado. Offset aplicado:', {
+            x: offsetX.toFixed(2),
+            y: offsetY.toFixed(2),
+            z: offsetZ.toFixed(2)
+          });
+          
+          // PASO 7: Aplicar posición y rotación al Group
+          this.mesh.position.set(position.x, position.y, position.z);
+          this.mesh.rotation.set(rotation.x, rotation.y, rotation.z);
+
+          // PASO 8: Configurar sombras en el mesh hijo
+          loadedMesh.traverse((child) => {
+            if (child.isMesh) {
+              child.castShadow = false;
+              child.receiveShadow = true;
+            }
+          });
+          
           this.scene.add(this.mesh);
 
           console.log('✅ Modelo del laberinto cargado con escala:', scale);
@@ -72,24 +139,14 @@ export class Maze {
 
   // ----------------------------- Helpers -----------------------------
   /**
-   * Configura transformaciones básicas del mesh y cualquier ajuste visual
-   * (por ejemplo, activar sombras si se requiere).
-   * @param {{scale:number, position:{x,y,z}, rotation:{x,y,z}}} opts
+   * NOTA: Este método ya no se usa. El centrado y configuración
+   * se hace directamente en el callback del loader para tener
+   * el orden correcto: escala -> centrado -> posición.
+   * Se mantiene por compatibilidad pero puede ser eliminado.
    */
   _configureMesh(opts) {
-    const { scale, position, rotation } = opts;
-    if (!this.mesh) return;
-    this.mesh.scale.set(scale, scale, scale);
-    this.mesh.position.set(position.x, position.y, position.z);
-    this.mesh.rotation.set(rotation.x, rotation.y, rotation.z);
-
-    // Optional: enable shadows for meshes if the app uses them
-    this.mesh.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = false;
-        child.receiveShadow = true;
-      }
-    });
+    // Método deprecado - la configuración se hace en load()
+    console.warn('⚠️ _configureMesh está deprecado. La configuración se hace en load()');
   }
 
   /**
