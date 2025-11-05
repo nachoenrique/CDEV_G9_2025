@@ -72,9 +72,9 @@ export class MazeController {
         levelManager.ground.quaternion.copy(mazeQuat.mult(planeOffset));
         
         // Actualizar visualización debug si existe
-        if (levelManager.groundMesh) {
-            levelManager.groundMesh.position.copy(levelManager.ground.position);
-            levelManager.groundMesh.quaternion.copy(levelManager.ground.quaternion);
+        if (levelManager.debugManager && levelManager.debugManager.groundMesh) {
+            levelManager.debugManager.groundMesh.position.copy(levelManager.ground.position);
+            levelManager.debugManager.groundMesh.quaternion.copy(levelManager.ground.quaternion);
         }
     }
 
@@ -118,9 +118,9 @@ export class MazeController {
             wall.quaternion.copy(mazeQuat.mult(levelManager.wallOriginalQuaternions[index]));
             
             // Actualizar visualización debug si existe
-            if (levelManager.wallMeshes[index]) {
-                levelManager.wallMeshes[index].position.copy(wall.position);
-                levelManager.wallMeshes[index].quaternion.copy(wall.quaternion);
+            if (levelManager.debugManager && levelManager.debugManager.wallMeshes[index]) {
+                levelManager.debugManager.wallMeshes[index].position.copy(wall.position);
+                levelManager.debugManager.wallMeshes[index].quaternion.copy(wall.quaternion);
             }
         });
     }

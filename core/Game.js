@@ -23,7 +23,7 @@ export class Game {
         this.materials = this.createMaterials();
         
         // Managers
-        this.levelManager = new LevelManager(scene, world, this.materials);
+        this.levelManager = new LevelManager(scene, world, this.materials, this.debugManager);
         this.controller = new MazeController(
             config.controls.maxTilt,
             config.controls.mouseSensitivity

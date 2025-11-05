@@ -10,10 +10,11 @@ import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 
 export class LevelManager {
-    constructor(scene, world, materials) {
+    constructor(scene, world, materials, debugManager = null) {
         this.scene = scene;
         this.world = world;
         this.materials = materials;
+        this.debugManager = debugManager;
         
         // Estado actual del nivel
         this.currentLevel = null;
@@ -53,6 +54,17 @@ export class LevelManager {
         
         // 4. Crear zonas de objetivo
         this.createZones(levelConfig.zones);
+        
+        // 5. Crear visualizaciones de debug si está activado
+        if (this.debugManager && this.debugManager.enabled) {
+            const planeSize = levelConfig.bounds.wallDistance * 2.5; // Un poco más grande que las paredes
+            this.debugManager.createGroundVisualization(this.ground, planeSize);
+            this.debugManager.createWallVisualizations(
+                this.walls, 
+                levelConfig.bounds.wallDistance, 
+                levelConfig.bounds.wallHeight
+            );
+        }
         
         console.log(`✅ ${levelConfig.name} cargado completamente`);
         console.log(`   📦 Pelotas: ${this.balls.length}`);

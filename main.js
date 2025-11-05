@@ -84,19 +84,28 @@ function onDebugToggle(enabled) {
     console.log('🔧 Debug toggle:', enabled);
     debugManager.toggle(enabled);
     
-    // Si se activa el debug Y hay un laberinto cargado, visualizar el pivote
-    if (enabled) {
-        console.log('🔍 Verificando laberinto:', {
-            levelManager: !!game.levelManager,
-            maze: !!game.levelManager.maze,
-            mesh: game.levelManager.maze ? !!game.levelManager.maze.mesh : false
-        });
+    // Si se activa el debug Y hay un laberinto cargado, crear visualizaciones
+    if (enabled && game.levelManager.currentLevel) {
+        console.log('🔍 Creando visualizaciones de debug...');
         
+        // Visualizar pivote del laberinto
         if (game.levelManager.maze && game.levelManager.maze.mesh) {
             console.log('✅ Visualizando pivote del laberinto...');
             debugManager.visualizeMazePivot(game.levelManager.maze);
-        } else {
-            console.warn('⚠️ No hay laberinto cargado. Carga un nivel primero.');
+        }
+        
+        // Visualizar planos de colisión (piso y paredes)
+        if (game.levelManager.ground && game.levelManager.walls.length > 0) {
+            const bounds = game.levelManager.currentLevel.bounds;
+            const planeSize = bounds.wallDistance * 2.5;
+            
+            console.log('✅ Visualizando planos de colisión...');
+            debugManager.createGroundVisualization(game.levelManager.ground, planeSize);
+            debugManager.createWallVisualizations(
+                game.levelManager.walls,
+                bounds.wallDistance,
+                bounds.wallHeight
+            );
         }
     }
 }

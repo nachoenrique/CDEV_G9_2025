@@ -226,12 +226,12 @@ export class DebugManager {
     /**
      * Crea visualización debug del piso de colisión
      * @param {CANNON.Body} groundBody - Cuerpo físico del piso
+     * @param {number} size - Tamaño del plano (debe ser al menos 2 * wallDistance)
      */
-    createGroundVisualization(groundBody) {
+    createGroundVisualization(groundBody, size = 200) {
         if (!this.enabled || this.groundMesh) return;
         
-        const planeSize = 100;
-        const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
+        const planeGeometry = new THREE.PlaneGeometry(size, size);
         const planeMaterial = new THREE.MeshBasicMaterial({
             color: 0x00ff00,
             transparent: true,
@@ -244,7 +244,7 @@ export class DebugManager {
         this.groundMesh.position.copy(groundBody.position);
         this.scene.add(this.groundMesh);
         
-        console.log('👁️ Plano visual de debug creado (verde transparente)');
+        console.log(`👁️ Plano visual de debug creado (verde transparente) - Tamaño: ${size}x${size}`);
     }
 
     /**
@@ -260,8 +260,8 @@ export class DebugManager {
         this.wallMeshes.forEach(mesh => this.scene.remove(mesh));
         this.wallMeshes = [];
         
-        const planeSize = wallDistance * 2;
-        const wallGeometry = new THREE.PlaneGeometry(planeSize, wallHeight);
+        const planeWidth = wallDistance * 2;
+        const wallGeometry = new THREE.PlaneGeometry(planeWidth, wallHeight);
         const wallMaterial = new THREE.MeshBasicMaterial({
             color: 0xff0000,
             transparent: true,
@@ -277,7 +277,7 @@ export class DebugManager {
             this.wallMeshes.push(wallMesh);
         });
         
-        console.log(`👁️ ${walls.length} paredes visuales de debug creadas (rojo transparente)`);
+        console.log(`👁️ ${walls.length} paredes visuales de debug creadas (rojo transparente) - Tamaño: ${planeWidth}x${wallHeight}`);
     }
 
     /**

@@ -19,7 +19,31 @@ export const LEVELS_CONFIG = {
             wallDistance: 14,
             wallHeight: 10,
             wallThickness: 1,
-            groundOffsetY: 20
+            groundOffsetY: 2
+        },
+        balls: [
+            { position: { x: -5, y: 20, z: -5 }, color: 0xffff00, radius: 0.5 }     // Amarilla
+        ],
+        zones: [
+            { position: { x: 12, y: 3.5, z: 12 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1: Noreste
+        ]
+    },
+    2: {
+        id: 2,
+        name: "Nivel Intermedio",
+        description: "Más desafíos te esperan",
+        unlocked: true, // Se desbloquea al completar nivel 1
+        maze: {
+            model: '/models/maze2.glb',
+            scale: 0.2,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 }
+        },
+        bounds: {
+            wallDistance: 14,
+            wallHeight: 10,
+            wallThickness: 1,
+            groundOffsetY: 2
         },
         balls: [
             { position: { x: -5, y: 20, z: 5 }, color: 0x00ff00, radius: 0.5 },     // Verde
@@ -30,11 +54,11 @@ export const LEVELS_CONFIG = {
             { position: { x: -12, y: 3.5, z: -12 }, size: { width: 3, height: 1, depth: 3 } }, // Zona 3: Suroeste
         ]
     },
-    2: {
-        id: 2,
-        name: "Nivel Intermedio",
-        description: "Más desafíos te esperan",
-        unlocked: false, // Se desbloquea al completar nivel 1
+    3: {
+        id: 3,
+        name: "Nivel Avanzado",
+        description: "Desafíos extremos te esperan",
+        unlocked: true, // Se desbloquea al completar nivel 2
         maze: {
             model: '/models/maze.glb', // Mismo modelo por ahora, puedes cambiarlo cuando tengas otro
             scale: 0.7,
