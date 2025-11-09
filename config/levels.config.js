@@ -9,6 +9,12 @@ export const LEVELS_CONFIG = {
         name: "Nivel Principiante",
         description: "Aprende los controles básicos",
         unlocked: true,
+        lighting: {
+            ambient: 0x40ff40,      // Verde suave
+            colors: [0x00ff00, 0xffff00], // Verde y amarillo
+            intensity: 2.5,
+            description: "Luces verdes/amarillas - Ambiente tranquilo"
+        },
         maze: {
             model: '/models/maze2.glb',
             scale: 0.2,
@@ -33,6 +39,12 @@ export const LEVELS_CONFIG = {
         name: "Nivel Intermedio",
         description: "Más desafíos te esperan",
         unlocked: true, // Se desbloquea al completar nivel 1
+        lighting: {
+            ambient: 0xff8040,      // Naranja suave
+            colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
+            intensity: 3.0,
+            description: "Luces naranjas - Dificultad media"
+        },
         maze: {
             model: '/models/maze2.glb',
             scale: 0.2,
@@ -59,6 +71,12 @@ export const LEVELS_CONFIG = {
         name: "Nivel Avanzado",
         description: "Desafíos extremos te esperan",
         unlocked: true, // Se desbloquea al completar nivel 2
+        lighting: {
+            ambient: 0xff4040,      // Rojo suave
+            colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
+            intensity: 3.5,
+            description: "Luces rojas/moradas - Máxima dificultad"
+        },
         maze: {
             model: '/models/maze.glb', // Mismo modelo por ahora, puedes cambiarlo cuando tengas otro
             scale: 0.7,

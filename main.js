@@ -133,29 +133,8 @@ function updateLevelLighting(levelId) {
     });
     lightingSystem.pointLights = [];
     
-    // Configuración de colores por nivel
-    const lightingConfig = {
-        1: {
-            ambient: 0x40ff40,      // Verde suave
-            colors: [0x00ff00, 0xffff00], // Verde y amarillo
-            intensity: 2.5,
-            description: "Luces verdes/amarillas - Ambiente tranquilo"
-        },
-        2: {
-            ambient: 0xff8040,      // Naranja suave
-            colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
-            intensity: 3.0,
-            description: "Luces naranjas - Dificultad media"
-        },
-        3: {
-            ambient: 0xff4040,      // Rojo suave
-            colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
-            intensity: 3.5,
-            description: "Luces rojas/moradas - Máxima dificultad"
-        }
-    };
-    
-    const config = lightingConfig[levelId];
+    // Obtener la configuración de iluminación del nivel actual
+    const config = LEVELS_CONFIG[levelId].lighting;
     
     // Actualizar luz ambiental con tinte de color
     lightingSystem.ambient.color.setHex(config.ambient);
