@@ -1,258 +1,268 @@
+/**
+ * Main.js - Punto de entrada de la aplicación
+ * Orquesta todos los módulos del juego
+ */
+
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
-import CannonDebugger from 'cannon-es-debugger';
-import { Maze } from './maze.js';
+import { Game } from './core/Game.js';
+import { MenuManager } from './ui/MenuManager.js';
+import { DebugManager } from './utils/DebugManager.js';
+import { LEVELS_CONFIG, GAME_CONFIG } from './config/levels.config.js';
 
-// Objeto para almacenar todas las variables globales
-const App = {
-    // Configuración inicial
-    scene: null,
-    camera: null,
-    renderer: null,
-    world: null,
-    mazeMaterial: null,
-    sphereMaterial: null,
-    DEBUG_PHYSICS: false, 
-    cannonDebugger: null,
-    velocityArrow: null,
-
-    // Laberinto
-    maze: null,
-
-    // Esfera
-    sphereMesh: null,
-    sphereBody: null,
-
-    // Control de Mouse
-    mouseX: 0,
-    mouseY: 0,
-    maxTilt: Math.PI / 12,
-
-    // Loop de animación
-    timeStep: 1 / 60,
-    maxSubSteps: 20
+// Variables globales mínimas
+let scene, camera, renderer, world;
+let game, menuManager, debugManager;
+let lightingSystem = {
+    ambient: null,
+    directional: null,
+    pointLights: []
 };
 
-function setupConfiguracionInicial() {
-    // Escena, cámara y renderizador
-    App.scene = new THREE.Scene();
-    App.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    App.renderer = new THREE.WebGLRenderer({ antialias: true });
-    App.renderer.setSize(window.innerWidth, window.innerHeight);
-    document.body.appendChild(App.renderer.domElement);
-
-    // Luz
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 10, 5);
-    App.scene.add(light);
-    App.scene.add(new THREE.AmbientLight(0x404040));
-
-    // Mundo de física con configuración para Trimesh
-    App.world = new CANNON.World();
-    App.world.gravity.set(0, -30, 0); 
-    App.world.broadphase = new CANNON.NaiveBroadphase(); 
-    App.world.solver.iterations = 20; 
-    App.world.allowSleep = false; 
-
-    // Materiales de contacto SIN fricción ni restitución
-    App.mazeMaterial = new CANNON.Material('maze');
-    App.sphereMaterial = new CANNON.Material('sphere');
-    const contactMaterial = new CANNON.ContactMaterial(App.mazeMaterial, App.sphereMaterial, {
-        friction: 0.0, 
-        restitution: 0.0 
-    }); 
-    App.world.addContactMaterial(contactMaterial); 
-}
-
-function setupLaberinto() {
-    // Cargar el laberinto con física automática
-    App.maze = new Maze(App.scene, App.world);
-    App.maze.load('/models/maze.glb', {
-        scale: 0.5,
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 }
-    }).then(() => {
-        // Asignar material al laberinto una vez cargado
-        App.maze.body.material = App.mazeMaterial;
-        if (App.maze.ceilingBody) {
-            App.maze.ceilingBody.material = App.mazeMaterial;
-            console.log('🏗️ Techo invisible recibió el material del laberinto');
-        }
-        console.log('🎯 Laberinto listo con', App.maze.body.shapes.length, 'formas físicas');
-    });
-}
-
-function setupEsfera() {
-    // Esfera (visual)
-    const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
-    const sphereMesh3Material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-    App.sphereMesh = new THREE.Mesh(sphereGeometry, sphereMesh3Material);
-    App.sphereMesh.position.set(0, 20, 0);
-    App.scene.add(App.sphereMesh);
-
-    // Esfera (física)
-    const sphereShape = new CANNON.Sphere(0.5);
-    App.sphereBody = new CANNON.Body({ 
-        mass: 0.5, 
-        material: App.sphereMaterial,
-        linearDamping: 0.0, 
-        angularDamping: 0.0 
-    });
-    App.sphereBody.addShape(sphereShape);
-    App.sphereBody.position.set(0, 20, 0);
-
-    // CCD (Continuous Collision Detection) CRÍTICO
-    App.sphereBody.ccdSpeedThreshold = 0.001; 
-    App.sphereBody.ccdIterations = 30; 
-
-    App.world.addBody(App.sphereBody);
-}
-
-function setupCamaraYControl() {
-    // Posición de la cámara
-    App.camera.position.set(0, 50, 0);
-    App.camera.lookAt(0, 0, 0);
-
-    // Seguimiento del mouse
-    window.addEventListener('mousemove', (event) => {
-        App.mouseX = (event.clientX / window.innerWidth) * 2 - 1;
-        App.mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
-    });
-
-    // Redimensionar ventana
-    window.addEventListener('resize', () => {
-        App.camera.aspect = window.innerWidth / window.innerHeight;
-        App.camera.updateProjectionMatrix();
-        App.renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-}
-
-function setupDebug() {
-    if (App.DEBUG_PHYSICS) {
-        App.cannonDebugger = new CannonDebugger(App.scene, App.world, {
-            color: 0x00ff00,
-            scale: 1.0
-        });
-        
-        // Crear flecha para visualizar el vector de velocidad
-        App.velocityArrow = new THREE.ArrowHelper(
-            new THREE.Vector3(0, 0, 0), 
-            new THREE.Vector3(0, 0, 0), 
-            1, 
-            0xff00ff, 
-            0.5, 
-            0.3 
-        );
-        App.scene.add(App.velocityArrow);
-        
-        console.log('🐛 Debug de física activado');
-        console.log('➡️ Flecha de velocidad: Magenta');
-    }
-}
-
 /**
- * Actualiza la rotación del laberinto en base al mouse.
- */
-function updateInclinacionLaberinto() {
-    const tiltX = -App.mouseY * App.maxTilt;
-    const tiltZ = -App.mouseX * App.maxTilt;
-    App.maze.setRotation(tiltX, 0, tiltZ);
-}
-
-/**
- * Realiza la simulación de la física (World.step).
- */
-function updateSimulacionFisica() {
-    // Simulación con múltiples substeps para evitar atravesamientos
-    App.world.step(App.timeStep, App.timeStep, App.maxSubSteps);
-}
-
-/**
- * Sincroniza las mallas visuales con los cuerpos de la física.
- */
-function updateSincronizacion() {
-    App.sphereMesh.position.copy(App.sphereBody.position);
-    App.sphereMesh.quaternion.copy(App.sphereBody.quaternion);
-    console.log('🔄 Sincronizando esfera: Posición', App.sphereBody.position, 'Rotación', App.sphereBody.quaternion);
-}
-
-/**
- * Actualiza el debug de física y la flecha de velocidad.
- */
-function updateDebug() {
-    // Actualizar debugger de física
-    if (App.cannonDebugger) {
-        App.cannonDebugger.update();
-    }
-    
-    // Actualizar vector de velocidad
-    if (App.velocityArrow) {
-        const velocity = App.sphereBody.velocity;
-        const speed = velocity.length();
-        
-        if (speed > 0.01) { 
-            // Posición de la flecha (desde el centro de la esfera)
-            App.velocityArrow.position.copy(App.sphereMesh.position);
-            
-            // Dirección normalizada de la velocidad
-            const direction = new THREE.Vector3(velocity.x, velocity.y, velocity.z).normalize();
-            App.velocityArrow.setDirection(direction);
-            
-            // Longitud AMPLIFICADA proporcional a la velocidad
-            const arrowLength = Math.min(speed * 3, 30); 
-            App.velocityArrow.setLength(arrowLength, arrowLength * 0.25, arrowLength * 0.2);
-            
-            App.velocityArrow.visible = true;
-        } else {
-            App.velocityArrow.visible = false; 
-        }
-    }
-}
-
-/**
- * Realiza el renderizado de la escena.
- */
-function updateRender() {
-    App.renderer.render(App.scene, App.camera);
-}
-
-/**
- * Función principal de inicialización que llama a todos los setups.
+ * Inicializa la aplicación
  */
 function init() {
-    setupConfiguracionInicial();
-    setupLaberinto();
-    setupEsfera();
-    setupCamaraYControl();
-    setupDebug(); 
+    console.log('🚀 Iniciando Maze Game...');
     
-    // Iniciar el loop de animación
+    // Setup básico de Three.js
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 50, 0);
+    camera.lookAt(0, 0, 0);
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true; // Habilitar sombras
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+    
+    // Iluminación base (se actualizará con cada nivel)
+    setupLighting();
+    
+    // Setup de Cannon.js
+    world = new CANNON.World();
+    world.gravity.set(
+        GAME_CONFIG.physics.gravity.x,
+        GAME_CONFIG.physics.gravity.y,
+        GAME_CONFIG.physics.gravity.z
+    );
+    world.broadphase = new CANNON.NaiveBroadphase();
+    world.solver.iterations = GAME_CONFIG.physics.solverIterations;
+    world.allowSleep = false;
+    
+    // Managers
+    debugManager = new DebugManager(scene, world);
+    menuManager = new MenuManager(onLevelSelect, onDebugToggle);
+    
+    // Game con referencia a la configuración de niveles y debugManager
+    game = new Game(scene, world, camera, GAME_CONFIG, menuManager, debugManager);
+    game.config.levelsConfig = LEVELS_CONFIG; // Añadir referencia para desbloqueo
+    
+    // Crear botones de niveles en el menú
+    menuManager.createLevelButtons(LEVELS_CONFIG);
+    
+    // Event listeners
+    window.addEventListener('resize', onWindowResize);
+    
+    console.log('✅ Aplicación iniciada correctamente');
+    
+    // Iniciar loop de animación
     animate();
 }
 
 /**
- * Bucle de animación principal. Llama a los métodos de actualización.
+ * Configura la iluminación base de la escena
+ */
+function setupLighting() {
+    // Luz ambiental suave
+    lightingSystem.ambient = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(lightingSystem.ambient);
+    
+    // Luz direccional principal con sombras
+    lightingSystem.directional = new THREE.DirectionalLight(0xffffff, 0.8);
+    lightingSystem.directional.position.set(10, 30, 10);
+    lightingSystem.directional.castShadow = true;
+    lightingSystem.directional.shadow.camera.near = 0.1;
+    lightingSystem.directional.shadow.camera.far = 100;
+    lightingSystem.directional.shadow.camera.left = -50;
+    lightingSystem.directional.shadow.camera.right = 50;
+    lightingSystem.directional.shadow.camera.top = 50;
+    lightingSystem.directional.shadow.camera.bottom = -50;
+    lightingSystem.directional.shadow.mapSize.width = 2048;
+    lightingSystem.directional.shadow.mapSize.height = 2048;
+    scene.add(lightingSystem.directional);
+    
+    console.log('💡 Sistema de iluminación base configurado');
+}
+
+/**
+ * Actualiza las luces según el nivel de dificultad
+ * @param {number} levelId - ID del nivel (1, 2 o 3)
+ */
+function updateLevelLighting(levelId) {
+    // Remover luces anteriores de punto
+    lightingSystem.pointLights.forEach(light => {
+        scene.remove(light);
+    });
+    lightingSystem.pointLights = [];
+    
+    // Configuración de colores por nivel
+    const lightingConfig = {
+        1: {
+            ambient: 0x40ff40,      // Verde suave
+            colors: [0x00ff00, 0xffff00], // Verde y amarillo
+            intensity: 2.5,
+            description: "Luces verdes/amarillas - Ambiente tranquilo"
+        },
+        2: {
+            ambient: 0xff8040,      // Naranja suave
+            colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
+            intensity: 3.0,
+            description: "Luces naranjas - Dificultad media"
+        },
+        3: {
+            ambient: 0xff4040,      // Rojo suave
+            colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
+            intensity: 3.5,
+            description: "Luces rojas/moradas - Máxima dificultad"
+        }
+    };
+    
+    const config = lightingConfig[levelId];
+    
+    // Actualizar luz ambiental con tinte de color
+    lightingSystem.ambient.color.setHex(config.ambient);
+    lightingSystem.ambient.intensity = 0.4;
+    
+    // Crear luces puntuales en las esquinas del laberinto
+    const positions = [
+        { x: 15, y: 15, z: 15 },   // Esquina noreste superior
+        { x: -15, y: 15, z: 15 },  // Esquina noroeste superior
+        { x: 15, y: 15, z: -15 },  // Esquina sureste superior
+        { x: -15, y: 15, z: -15 }, // Esquina suroeste superior
+    ];
+    
+    positions.forEach((pos, index) => {
+        const colorIndex = index % config.colors.length;
+        const pointLight = new THREE.PointLight(
+            config.colors[colorIndex],
+            config.intensity,
+            50  // Distancia de alcance
+        );
+        pointLight.position.set(pos.x, pos.y, pos.z);
+        pointLight.castShadow = true;
+        pointLight.shadow.mapSize.width = 512;
+        pointLight.shadow.mapSize.height = 512;
+        
+        // Guardar intensidad base para animación
+        pointLight.userData.baseIntensity = config.intensity;
+        
+        scene.add(pointLight);
+        lightingSystem.pointLights.push(pointLight);
+        
+        // Añadir esfera visual pequeña para ver donde está la luz (opcional)
+        const sphereGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ 
+            color: config.colors[colorIndex],
+            transparent: true,
+            opacity: 0.8
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.copy(pointLight.position);
+        scene.add(sphere);
+        lightingSystem.pointLights.push(sphere); // Para eliminarlas después
+    });
+    
+    console.log(`💡 Iluminación de nivel ${levelId} configurada:`, config.description);
+}
+
+/**
+ * Callback cuando se selecciona un nivel
+ * @param {number} levelId - ID del nivel seleccionado
+ */
+function onLevelSelect(levelId) {
+    console.log(`📍 Nivel ${levelId} seleccionado`);
+    updateLevelLighting(levelId);
+    game.startLevel(levelId, LEVELS_CONFIG[levelId]);
+}
+
+/**
+ * Callback cuando se activa/desactiva el debug
+ * @param {boolean} enabled - True si está activado
+ */
+function onDebugToggle(enabled) {
+    console.log('🔧 Debug toggle:', enabled);
+    debugManager.toggle(enabled);
+    
+    // Si se activa el debug Y hay un laberinto cargado, crear visualizaciones
+    if (enabled && game.levelManager.currentLevel) {
+        console.log('🔍 Creando visualizaciones de debug...');
+        
+        // Visualizar pivote del laberinto
+        if (game.levelManager.maze && game.levelManager.maze.mesh) {
+            console.log('✅ Visualizando pivote del laberinto...');
+            debugManager.visualizeMazePivot(game.levelManager.maze);
+        }
+        
+        // Visualizar planos de colisión (piso y paredes)
+        if (game.levelManager.ground && game.levelManager.walls.length > 0) {
+            const bounds = game.levelManager.currentLevel.bounds;
+            const planeSize = bounds.wallDistance * 2.5;
+            
+            console.log('✅ Visualizando planos de colisión...');
+            debugManager.createGroundVisualization(game.levelManager.ground, planeSize);
+            debugManager.createWallVisualizations(
+                game.levelManager.walls,
+                bounds.wallDistance,
+                bounds.wallHeight
+            );
+        }
+    }
+}
+
+/**
+ * Maneja el redimensionamiento de la ventana
+ */
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+/**
+ * Bucle de animación principal
  */
 function animate() {
     requestAnimationFrame(animate);
     
-    // 1. Lógica de control e inclinación
-    if (App.maze) { // Asegurarse de que el laberinto esté cargado antes de inclinar
-        updateInclinacionLaberinto();
-    }
+    // Animación sutil de luces (pulsación)
+    const time = Date.now() * 0.001; // Tiempo en segundos
+    lightingSystem.pointLights.forEach((light, index) => {
+        if (light.isPointLight) {
+            // Cada luz pulsa a diferente velocidad
+            const offset = index * Math.PI / 2;
+            const pulse = Math.sin(time * 2 + offset) * 0.3 + 1; // Entre 0.7 y 1.3
+            light.intensity = light.userData.baseIntensity * pulse;
+        }
+    });
     
-    // 2. Simulación de la física
-    updateSimulacionFisica();
-
-    // 3. Debug (si está activado)
-    updateDebug();
+    // 1. Simulación de física
+    world.step(
+        GAME_CONFIG.physics.timeStep, 
+        GAME_CONFIG.physics.timeStep, 
+        GAME_CONFIG.physics.maxSubSteps
+    );
     
-    // 4. Sincronización visual
-    updateSincronizacion();
+    // 2. Actualizar juego (controles, verificación de zonas, etc.)
+    game.update();
     
-    // 5. Renderizado
-    updateRender();
+    // 3. Actualizar debug (si está activado)
+    debugManager.update(game.levelManager.balls);
+    
+    // 4. Renderizar escena
+    renderer.render(scene, camera);
 }
 
-// Llamada para iniciar la aplicación
+// Iniciar aplicación cuando el DOM esté listo
 init();

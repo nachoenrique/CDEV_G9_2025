@@ -3,13 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Three.js Physics</title>
-  <style>
-    body { margin: 0; overflow: hidden; }
-    canvas { display: block; }
-  </style>
+  <title>Maze Game - Niveles</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- Menú principal -->
+  <div id="menu-container" class="menu-container">
+    <div class="menu-content">
+      <h1>🎮 Maze Game</h1>
+      <div id="level-selector" class="level-selector">
+        <!-- Botones de niveles se generan dinámicamente -->
+      </div>
+      <div class="menu-options">
+        <label>
+          <input type="checkbox" id="debug-toggle"> Modo Debug
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de victoria -->
+  <div id="win-overlay" class="win-overlay hidden">
+    <div class="win-content">
+      <h2>🎉 ¡Nivel Completado!</h2>
+      <button id="next-level-btn">Siguiente Nivel</button>
+      <button id="menu-btn">Volver al Menú</button>
+    </div>
+  </div>
+
+  <!-- HUD en juego -->
+  <div id="game-hud" class="game-hud hidden">
+    <div class="hud-info">
+      <span id="current-level">Nivel: 1</span>
+      <span id="zones-status">Zonas: 0/4</span>
+    </div>
+    <button id="pause-btn" class="pause-btn">⏸️ Menú</button>
+  </div>
+
   <script type="module" src="/main.js"></script>
 </body>
 </html>

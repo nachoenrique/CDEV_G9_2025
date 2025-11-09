@@ -1,16 +1,19 @@
 # CDEV_G9_2025 🎮
 
-Proyecto de **Creatividad y Desarrollo de Entornos Virtuales** - Laberinto 3D interactivo con física realista.
+Proyecto de **Creatividad y Desarrollo de Entornos Virtuales** - Laberinto 3D interactivo con física realista y sistema de niveles.
 
 ## 📋 Descripción
 
-Simulación 3D de un laberinto con física implementada usando **Three.js** y **Cannon.js**. El proyecto incluye:
+Juego 3D de laberinto con física implementada usando **Three.js** y **Cannon.js**. El proyecto incluye:
 
-- 🎯 Laberinto 3D cargado desde modelo GLB
+- 🎯 Sistema de niveles configurables
+- 🎨 Menú interactivo con selección de niveles
 - ⚽ Física realista con Cannon.js (gravedad, colisiones, fricción)
-- 🖱️ Control por mouse - inclina el laberinto para mover la bola
-- 🏗️ Arquitectura modular y escalable
-- 🐛 Sistema de debug para visualizar colisiones
+- 🖱️ Control por mouse - inclina el laberinto para mover las bolas
+- 🏗️ Arquitectura modular y escalable (separación de responsabilidades)
+- 🐛 Sistema de debug integrado (activable desde el menú)
+- 🎊 Sistema de victoria y progresión de niveles
+- 📊 HUD en tiempo real con información del juego
 
 ## 🚀 Instalación
 
@@ -40,37 +43,56 @@ npm run dev
    - El servidor te mostrará una URL (normalmente `http://localhost:5173`)
    - Abre esa URL en tu navegador
 
-## 🎮 Cómo usar
+## 🎮 Cómo jugar
 
-- **Mueve el mouse** para inclinar el laberinto
-- La bola seguirá la inclinación y rodará por el laberinto
-- Las paredes tienen colisiones realistas
+1. **Selecciona un nivel** desde el menú principal
+2. **Mueve el mouse** para inclinar el laberinto
+3. **Guía las pelotas** hacia las zonas objetivo (rojas)
+4. Las zonas se vuelven **verdes** cuando una pelota está dentro
+5. **Completa todas las zonas** para ganar el nivel
+6. Desbloquea niveles adicionales al completar los anteriores
 
 ### Modo Debug
 
-Para ver las formas físicas (colisiones):
+Activa el **Modo Debug** desde el menú principal para ver:
+- Formas físicas de colisión (verde)
+- Flechas de velocidad de las pelotas (magenta)
+- Planos de las paredes y piso
 
-1. Abre `main.js`
-2. Cambia la línea:
-```javascript
-const DEBUG_PHYSICS = false; // Cambiar a true
-```
-3. Guarda el archivo
-4. Verás las colisiones en color verde
-
-## 📁 Estructura del proyecto
+## 📁 Estructura del proyecto (refactorizada)
 
 ```
 CDEV_G9_2025/
-├── index.html          # Página principal
-├── main.js            # Configuración principal y loop de animación
-├── physics.js         # Módulo de física (Trimesh, conversiones)
-├── maze.js            # Módulo del laberinto (carga y gestión)
-├── models/            # Modelos 3D del laberinto
-│   └── maze.glb       # Modelo del laberinto (recomendado)
-├── package.json       # Dependencias del proyecto
-└── README.md          # Este archivo
+├── index.html              # Página HTML con menú y UI
+├── styles.css              # Estilos del menú y HUD
+├── main.js                 # Punto de entrada (orquestador)
+├── config/
+│   └── levels.config.js    # Configuración de todos los niveles
+├── core/
+│   ├── Game.js             # Lógica principal del juego
+│   ├── LevelManager.js     # Gestión de carga/descarga de niveles
+│   └── MazeController.js   # Controles y sincronización del laberinto
+├── ui/
+│   └── MenuManager.js      # Gestión del menú y HUD
+├── utils/
+│   ├── physics.js          # Utilidades de física (Trimesh, conversiones)
+│   ├── maze.js             # Clase para cargar laberintos
+│   └── DebugManager.js     # Sistema de debug visual
+├── models/
+│   └── maze.glb            # Modelos 3D de los laberintos
+├── package.json            # Dependencias
+└── README.md               # Este archivo
 ```
+
+### 🏗️ Arquitectura modular
+
+La aplicación está diseñada con **separación de responsabilidades**:
+
+- **`config/`**: Configuraciones (niveles, físicas, controles) - DATOS
+- **`core/`**: Lógica del juego (Game, LevelManager, MazeController) - LÓGICA
+- **`ui/`**: Interfaz de usuario (menú, HUD, overlays) - UI
+- **`utils/`**: Herramientas reutilizables (física, debug, maze) - UTILIDADES
+- **`main.js`**: Orquestador que conecta todo - ENTRADA
 
 ## 🛠️ Tecnologías utilizadas
 
@@ -87,41 +109,72 @@ npm run build    # Compila para producción
 npm run preview  # Previsualiza el build de producción
 ```
 
-## 🔧 Configuración avanzada
+## 🔧 Cómo añadir nuevos niveles
 
-### Ajustar el tamaño del laberinto
-
-En `main.js`, modifica el parámetro `scale`:
+¡Es muy fácil! Solo edita `config/levels.config.js`:
 
 ```javascript
-maze.load('/models/maze.glb', {
-  scale: 2,  // Cambiar este valor (1 = normal, 2 = doble, etc.)
-  position: { x: 0, y: 0, z: 0 },
-  rotation: { x: 0, y: 0, z: 0 }
-});
+export const LEVELS_CONFIG = {
+    // ... niveles existentes ...
+    
+    3: {  // Nuevo nivel
+        id: 3,
+        name: "Nivel Experto",
+        description: "El desafío definitivo",
+        unlocked: false,
+        maze: {
+            model: '/models/maze_level3.glb',  // Tu nuevo modelo
+            scale: 0.8,
+            position: { x: 0, y: 0, z: 0 }
+        },
+        bounds: {
+            wallDistance: 30,    // Cambiar tamaño
+            wallHeight: 15,
+            groundOffsetY: 3
+        },
+        balls: [
+            // Definir tus pelotas
+            { position: { x: 10, y: 20, z: 10 }, color: 0xff0000, radius: 0.5 }
+        ],
+        zones: [
+            // Definir tus zonas
+            { position: { x: 20, y: 3.5, z: 20 }, size: { width: 3, height: 1, depth: 3 } }
+        ]
+    }
+};
 ```
 
-### Ajustar la física
+**¡Eso es todo!** El juego automáticamente:
+- Crea el botón en el menú
+- Carga el laberinto
+- Crea las pelotas y zonas
+- Gestiona la física
+- Verifica la victoria
 
-En `main.js`, puedes modificar:
+### Ajustar la configuración global
 
-```javascript
-// Gravedad
-world.gravity.set(0, -10, 0); // Cambiar -10 por otro valor
-
-// Fricción y rebote
-const contactMaterial = new CANNON.ContactMaterial(mazeMaterial, sphereMaterial, {
-  friction: 0.3,      // Más alto = más fricción
-  restitution: 0.3    // Más alto = más rebote
-});
-```
-
-### Cambiar la cámara
-
-En `main.js`:
+En `config/levels.config.js`, modifica `GAME_CONFIG`:
 
 ```javascript
-camera.position.set(0, 50, 0);  // Altura de la cámara
+export const GAME_CONFIG = {
+    physics: {
+        gravity: { x: 0, y: -10, z: 0 },  // Cambiar gravedad
+        timeStep: 1 / 60,
+        maxSubSteps: 20,
+        solverIterations: 20
+    },
+    controls: {
+        maxTilt: Math.PI / 12,     // Inclinación máxima
+        mouseSensitivity: 1.0      // Sensibilidad del mouse
+    },
+    materials: {
+        ball: {
+            mass: 0.5,             // Masa de las pelotas
+            friction: 0.0,
+            restitution: 0.0       // Rebote
+        }
+    }
+};
 ```
 
 ## 🐛 Solución de problemas
@@ -130,13 +183,22 @@ camera.position.set(0, 50, 0);  // Altura de la cámara
 - Verifica que Node.js esté instalado: `node --version`
 - Elimina `node_modules` y vuelve a instalar: `rm -rf node_modules && npm install`
 
+### No se ve el menú
+- Verifica que `index.html` esté cargando correctamente
+- Revisa la consola del navegador (F12) para ver errores
+
 ### La bola atraviesa el piso
-- Esto es un problema conocido con Trimesh en física de alta velocidad
-- Soluciones en desarrollo (ver `physics.js`)
+- El sistema ya incluye CCD (Continuous Collision Detection)
+- Si persiste, ajusta `ccdIterations` en `config/levels.config.js`
 
 ### No se ve el laberinto
-- Verifica que la ruta del modelo sea correcta en `main.js`
-- Revisa la consola del navegador para ver errores
+- Verifica que la ruta del modelo sea correcta en `config/levels.config.js`
+- Revisa la consola del navegador para ver errores de carga
+- Asegúrate de que el archivo `.glb` existe en la carpeta `models/`
+
+### El debug no funciona
+- Marca el checkbox "Modo Debug" en el menú principal
+- Verifica que `cannon-es-debugger` esté instalado: `npm install`
 
 ## 👥 Autores
 
