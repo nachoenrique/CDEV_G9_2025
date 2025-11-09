@@ -103,11 +103,31 @@ export class Maze {
           this.mesh.position.set(position.x, position.y, position.z);
           this.mesh.rotation.set(rotation.x, rotation.y, rotation.z);
 
-          // PASO 8: Configurar sombras en el mesh hijo
+          // PASO 8: Configurar sombras y aplicar material de vidrio
+          // Crear material de vidrio celeste brillante y visible
+          const glassMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0x87ceeb,           // Color celeste brillante (sky blue)
+            metalness: 0.1,            // Un poco de metalicidad para brillo
+            roughness: 0.2,            // Menos suave para más visibilidad del color
+            transmission: 0.5,         // Menos transmisión para que se vea el color
+            thickness: 0.8,            // Mayor grosor del vidrio
+            transparent: true,         // Activar transparencia
+            opacity: 0.7,              // Mayor opacidad para ver el color
+            envMapIntensity: 2.0,      // Mayor intensidad de reflejos
+            clearcoat: 1.0,            // Capa clara en la superficie
+            clearcoatRoughness: 0.05,  // Superficie muy brillante
+            ior: 1.5,                  // Índice de refracción del vidrio
+            reflectivity: 0.8,         // Mayor reflectividad
+            side: THREE.DoubleSide,    // Renderizar ambos lados
+            emissive: 0x4a9fd8,        // Añadir emisión para brillar levemente
+            emissiveIntensity: 0.2     // Intensidad de la emisión
+          });
+          
           loadedMesh.traverse((child) => {
             if (child.isMesh) {
               child.castShadow = false;
               child.receiveShadow = true;
+              child.material = glassMaterial; // Aplicar material de vidrio
             }
           });
           

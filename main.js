@@ -13,6 +13,11 @@ import { LEVELS_CONFIG, GAME_CONFIG } from './config/levels.config.js';
 // Variables globales mínimas
 let scene, camera, renderer, world;
 let game, menuManager, debugManager;
+let lightingSystem = {
+    ambient: null,
+    directional: null,
+    pointLights: []
+};
 
 /**
  * Inicializa la aplicación
@@ -28,13 +33,12 @@ function init() {
     
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true; // Habilitar sombras
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
     
-    // Luces
-    const light = new THREE.DirectionalLight(0xffffff, 1);
-    light.position.set(5, 10, 5);
-    scene.add(light);
-    scene.add(new THREE.AmbientLight(0x404040));
+    // Iluminación base (se actualizará con cada nivel)
+    setupLighting();
     
     // Setup de Cannon.js
     world = new CANNON.World();
@@ -68,11 +72,118 @@ function init() {
 }
 
 /**
+ * Configura la iluminación base de la escena
+ */
+function setupLighting() {
+    // Luz ambiental suave
+    lightingSystem.ambient = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(lightingSystem.ambient);
+    
+    // Luz direccional principal con sombras
+    lightingSystem.directional = new THREE.DirectionalLight(0xffffff, 0.8);
+    lightingSystem.directional.position.set(10, 30, 10);
+    lightingSystem.directional.castShadow = true;
+    lightingSystem.directional.shadow.camera.near = 0.1;
+    lightingSystem.directional.shadow.camera.far = 100;
+    lightingSystem.directional.shadow.camera.left = -50;
+    lightingSystem.directional.shadow.camera.right = 50;
+    lightingSystem.directional.shadow.camera.top = 50;
+    lightingSystem.directional.shadow.camera.bottom = -50;
+    lightingSystem.directional.shadow.mapSize.width = 2048;
+    lightingSystem.directional.shadow.mapSize.height = 2048;
+    scene.add(lightingSystem.directional);
+    
+    console.log('💡 Sistema de iluminación base configurado');
+}
+
+/**
+ * Actualiza las luces según el nivel de dificultad
+ * @param {number} levelId - ID del nivel (1, 2 o 3)
+ */
+function updateLevelLighting(levelId) {
+    // Remover luces anteriores de punto
+    lightingSystem.pointLights.forEach(light => {
+        scene.remove(light);
+    });
+    lightingSystem.pointLights = [];
+    
+    // Configuración de colores por nivel
+    const lightingConfig = {
+        1: {
+            ambient: 0x40ff40,      // Verde suave
+            colors: [0x00ff00, 0xffff00], // Verde y amarillo
+            intensity: 2.5,
+            description: "Luces verdes/amarillas - Ambiente tranquilo"
+        },
+        2: {
+            ambient: 0xff8040,      // Naranja suave
+            colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
+            intensity: 3.0,
+            description: "Luces naranjas - Dificultad media"
+        },
+        3: {
+            ambient: 0xff4040,      // Rojo suave
+            colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
+            intensity: 3.5,
+            description: "Luces rojas/moradas - Máxima dificultad"
+        }
+    };
+    
+    const config = lightingConfig[levelId];
+    
+    // Actualizar luz ambiental con tinte de color
+    lightingSystem.ambient.color.setHex(config.ambient);
+    lightingSystem.ambient.intensity = 0.4;
+    
+    // Crear luces puntuales en las esquinas del laberinto
+    const positions = [
+        { x: 15, y: 15, z: 15 },   // Esquina noreste superior
+        { x: -15, y: 15, z: 15 },  // Esquina noroeste superior
+        { x: 15, y: 15, z: -15 },  // Esquina sureste superior
+        { x: -15, y: 15, z: -15 }, // Esquina suroeste superior
+    ];
+    
+    positions.forEach((pos, index) => {
+        const colorIndex = index % config.colors.length;
+        const pointLight = new THREE.PointLight(
+            config.colors[colorIndex],
+            config.intensity,
+            50  // Distancia de alcance
+        );
+        pointLight.position.set(pos.x, pos.y, pos.z);
+        pointLight.castShadow = true;
+        pointLight.shadow.mapSize.width = 512;
+        pointLight.shadow.mapSize.height = 512;
+        
+        // Guardar intensidad base para animación
+        pointLight.userData.baseIntensity = config.intensity;
+        
+        scene.add(pointLight);
+        lightingSystem.pointLights.push(pointLight);
+        
+        // Añadir esfera visual pequeña para ver donde está la luz (opcional)
+        const sphereGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+        const sphereMaterial = new THREE.MeshBasicMaterial({ 
+            color: config.colors[colorIndex],
+            transparent: true,
+            opacity: 0.8
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.copy(pointLight.position);
+        scene.add(sphere);
+        lightingSystem.pointLights.push(sphere); // Para eliminarlas después
+    });
+    
+    console.log(`💡 Iluminación de nivel ${levelId} configurada:`, config.description);
+}
+
+/**
  * Callback cuando se selecciona un nivel
  * @param {number} levelId - ID del nivel seleccionado
  */
 function onLevelSelect(levelId) {
     console.log(`📍 Nivel ${levelId} seleccionado`);
+    updateLevelLighting(levelId);
     game.startLevel(levelId, LEVELS_CONFIG[levelId]);
 }
 
@@ -124,6 +235,17 @@ function onWindowResize() {
  */
 function animate() {
     requestAnimationFrame(animate);
+    
+    // Animación sutil de luces (pulsación)
+    const time = Date.now() * 0.001; // Tiempo en segundos
+    lightingSystem.pointLights.forEach((light, index) => {
+        if (light.isPointLight) {
+            // Cada luz pulsa a diferente velocidad
+            const offset = index * Math.PI / 2;
+            const pulse = Math.sin(time * 2 + offset) * 0.3 + 1; // Entre 0.7 y 1.3
+            light.intensity = light.userData.baseIntensity * pulse;
+        }
+    });
     
     // 1. Simulación de física
     world.step(
