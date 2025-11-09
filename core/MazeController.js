@@ -1,6 +1,6 @@
 /**
  * MazeController - Controla la rotación del laberinto y sincroniza todos los elementos
- * - Captura input del mouse
+ * - Captura input del mouse y giroscopio
  * - Aplica rotación al laberinto
  * - Sincroniza piso, paredes y zonas con la rotación del laberinto
  * - Funciona de forma genérica con cualquier nivel
@@ -8,6 +8,7 @@
 
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
+import { DeviceOrientationController } from '../utils/deviceOrientation.js';
 
 export class MazeController {
     constructor(maxTilt, mouseSensitivity) {
@@ -15,6 +16,10 @@ export class MazeController {
         this.mouseSensitivity = mouseSensitivity;
         this.mouseX = 0;
         this.mouseY = 0;
+        
+        // Control de orientación de dispositivo (giroscopio)
+        this.deviceController = new DeviceOrientationController();
+        this.useGyroscope = false; // Por defecto desactivado
         
         this.setupMouseControl();
     }
@@ -36,9 +41,19 @@ export class MazeController {
     update(levelManager) {
         if (!levelManager.maze || !levelManager.currentLevel) return;
         
-        // Calcular inclinación basada en la posición del mouse
-        const tiltX = -this.mouseY * this.maxTilt;
-        const tiltZ = -this.mouseX * this.maxTilt;
+        let tiltX, tiltZ;
+        
+        // Usar giroscopio o mouse según configuración
+        if (this.useGyroscope && this.deviceController.enabled) {
+            // Usar valores del giroscopio
+            const gyroTilt = this.deviceController.getTilt();
+            tiltX = gyroTilt.tiltX * this.maxTilt;
+            tiltZ = -gyroTilt.tiltZ * this.maxTilt;
+        } else {
+            // Usar valores del mouse (comportamiento original)
+            tiltX = -this.mouseY * this.maxTilt;
+            tiltZ = -this.mouseX * this.maxTilt;
+        }
         
         // Aplicar rotación al laberinto
         levelManager.maze.setRotation(tiltX, 0, tiltZ);
@@ -160,5 +175,88 @@ export class MazeController {
     resetMousePosition() {
         this.mouseX = 0;
         this.mouseY = 0;
+    }
+
+    /**
+     * Activa el control por giroscopio
+     * @returns {Promise<boolean>} True si se activó correctamente
+     */
+    async enableGyroscope() {
+        if (!this.deviceController.supported) {
+            console.warn('⚠️ Giroscopio no soportado en este dispositivo');
+            return false;
+        }
+
+        // Solicitar permisos si es necesario
+        if (!this.deviceController.permissionGranted) {
+            const granted = await this.deviceController.requestPermission();
+            if (!granted) {
+                console.error('❌ Permiso de giroscopio denegado');
+                return false;
+            }
+        }
+
+        // Activar el controlador de dispositivo
+        const success = this.deviceController.enable();
+        if (success) {
+            this.useGyroscope = true;
+            console.log('🎮 Modo giroscopio ACTIVADO');
+        }
+        
+        return success;
+    }
+
+    /**
+     * Desactiva el control por giroscopio
+     */
+    disableGyroscope() {
+        this.deviceController.disable();
+        this.useGyroscope = false;
+        console.log('🎮 Modo giroscopio DESACTIVADO - usando mouse');
+    }
+
+    /**
+     * Alterna entre modo giroscopio y mouse
+     * @returns {Promise<boolean>} True si el giroscopio está activo después del toggle
+     */
+    async toggleGyroscope() {
+        if (this.useGyroscope) {
+            this.disableGyroscope();
+            return false;
+        } else {
+            const success = await this.enableGyroscope();
+            return success;
+        }
+    }
+
+    /**
+     * Calibra la posición neutral del giroscopio
+     */
+    calibrateGyroscope() {
+        this.deviceController.calibrate();
+    }
+
+    /**
+     * Ajusta la sensibilidad del giroscopio
+     * @param {number} value - Nuevo valor de sensibilidad
+     */
+    setGyroscopeSensitivity(value) {
+        this.deviceController.setSensitivity(value);
+    }
+
+    /**
+     * Verifica si el giroscopio está activo
+     * @returns {boolean}
+     */
+    isGyroscopeActive() {
+        return this.useGyroscope && this.deviceController.enabled;
+    }
+
+    /**
+     * Obtiene el estado del controlador de giroscopio
+     * @returns {Object}
+     */
+    getGyroscopeStatus() {
+        return this.deviceController.getStatus();
     }
 }

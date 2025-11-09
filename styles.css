@@ -140,12 +140,77 @@ body {
     gap: 10px;
     font-size: 1.1em;
     cursor: pointer;
+    margin-bottom: 10px;
 }
 
 .menu-options input[type="checkbox"] {
     width: 20px;
     height: 20px;
     cursor: pointer;
+}
+
+.gyroscope-option {
+    color: #00ffff;
+    font-weight: bold;
+}
+
+.calibrate-btn {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, #00ffff 0%, #00cccc 100%);
+    border: none;
+    border-radius: 8px;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 1em;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 10px rgba(0, 255, 255, 0.3);
+}
+
+.calibrate-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 255, 255, 0.5);
+}
+
+.calibrate-btn:active {
+    transform: translateY(0);
+}
+
+/* ==================== MENSAJES DE GIROSCOPIO ==================== */
+.gyroscope-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px 40px;
+    border-radius: 10px;
+    font-size: 1.2em;
+    font-weight: bold;
+    z-index: 10000;
+    animation: messageSlideIn 0.3s ease-out;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+.gyroscope-message.success {
+    background: linear-gradient(135deg, #00ff00 0%, #00cc00 100%);
+    color: #000;
+}
+
+.gyroscope-message.error {
+    background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+    color: #fff;
 }
 
 /* ==================== HUD EN JUEGO ==================== */

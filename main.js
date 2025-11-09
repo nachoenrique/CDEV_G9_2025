@@ -8,11 +8,13 @@ import * as CANNON from 'cannon-es';
 import { Game } from './core/Game.js';
 import { MenuManager } from './ui/MenuManager.js';
 import { DebugManager } from './utils/DebugManager.js';
+import { CameraZoom } from './utils/cameraZoom.js';
 import { LEVELS_CONFIG, GAME_CONFIG } from './config/levels.config.js';
+import { isMobile } from './utils/deviceDetection.js';
 
 // Variables globales mínimas
 let scene, camera, renderer, world;
-let game, menuManager, debugManager;
+let game, menuManager, debugManager, cameraZoom;
 let lightingSystem = {
     ambient: null,
     directional: null,
@@ -53,17 +55,41 @@ function init() {
     
     // Managers
     debugManager = new DebugManager(scene, world);
-    menuManager = new MenuManager(onLevelSelect, onDebugToggle);
+    menuManager = new MenuManager(onLevelSelect, onDebugToggle, onGyroscopeToggle);
+    
+    // Sistema de zoom de cámara
+    cameraZoom = new CameraZoom(camera, 30, 80, 2, 0.15);
     
     // Game con referencia a la configuración de niveles y debugManager
     game = new Game(scene, world, camera, GAME_CONFIG, menuManager, debugManager);
     game.config.levelsConfig = LEVELS_CONFIG; // Añadir referencia para desbloqueo
+    
+    // Configurar callback de calibración del giroscopio
+    menuManager.setCalibrationCallback(() => {
+        game.controller.calibrateGyroscope();
+    });
     
     // Crear botones de niveles en el menú
     menuManager.createLevelButtons(LEVELS_CONFIG);
     
     // Event listeners
     window.addEventListener('resize', onWindowResize);
+    
+    // Activar giroscopio automáticamente en móviles
+    if (isMobile()) {
+        console.log('📱 Dispositivo móvil detectado - Activando giroscopio automáticamente');
+        // Esperar a que se cargue todo antes de activar
+        setTimeout(async () => {
+            const success = await game.controller.enableGyroscope();
+            if (success) {
+                console.log('✅ Giroscopio activado automáticamente para móvil');
+            } else {
+                console.warn('⚠️ No se pudo activar el giroscopio automáticamente');
+            }
+        }, 500);
+    } else {
+        console.log('🖥️ Desktop detectado - Usando control por mouse');
+    }
     
     console.log('✅ Aplicación iniciada correctamente');
     
@@ -222,6 +248,32 @@ function onDebugToggle(enabled) {
 }
 
 /**
+ * Callback cuando se activa/desactiva el giroscopio
+ * @param {boolean} shouldEnable - True si se debe activar
+ * @returns {Promise<boolean>} True si quedó activado
+ */
+async function onGyroscopeToggle(shouldEnable) {
+    console.log('📱 Giroscopio toggle:', shouldEnable);
+    
+    if (shouldEnable) {
+        const isActive = await game.controller.enableGyroscope();
+        menuManager.updateGyroscopeToggle(isActive);
+        
+        if (isActive) {
+            console.log('✅ Giroscopio activado exitosamente');
+        } else {
+            console.warn('⚠️ No se pudo activar el giroscopio');
+        }
+        
+        return isActive;
+    } else {
+        game.controller.disableGyroscope();
+        menuManager.updateGyroscopeToggle(false);
+        return false;
+    }
+}
+
+/**
  * Maneja el redimensionamiento de la ventana
  */
 function onWindowResize() {
@@ -257,10 +309,13 @@ function animate() {
     // 2. Actualizar juego (controles, verificación de zonas, etc.)
     game.update();
     
-    // 3. Actualizar debug (si está activado)
+    // 3. Actualizar zoom de cámara
+    cameraZoom.update();
+    
+    // 4. Actualizar debug (si está activado)
     debugManager.update(game.levelManager.balls);
     
-    // 4. Renderizar escena
+    // 5. Renderizar escena
     renderer.render(scene, camera);
 }
 

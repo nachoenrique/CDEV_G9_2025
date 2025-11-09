@@ -3,24 +3,32 @@
  * - Menú principal con selección de niveles
  * - HUD durante el juego
  * - Overlay de victoria
+ * - Controles de giroscopio
  */
 
+import { isMobile } from '../utils/deviceDetection.js';
+
 export class MenuManager {
-    constructor(onLevelSelect, onDebugToggle) {
+    constructor(onLevelSelect, onDebugToggle, onGyroscopeToggle = null) {
         this.onLevelSelect = onLevelSelect;
         this.onDebugToggle = onDebugToggle;
+        this.onGyroscopeToggle = onGyroscopeToggle;
         
         // Referencias a elementos del DOM
         this.menuContainer = document.getElementById('menu-container');
         this.levelSelector = document.getElementById('level-selector');
         this.debugToggle = document.getElementById('debug-toggle');
+        this.gyroscopeToggle = document.getElementById('gyroscope-toggle');
+        this.calibrateBtn = document.getElementById('calibrate-btn');
         this.gameHud = document.getElementById('game-hud');
         this.winOverlay = document.getElementById('win-overlay');
         
         this.currentLevelId = null;
         this.nextLevelCallback = null;
+        this.isMobileDevice = isMobile();
         
         this.setupEventListeners();
+        this.setupDeviceSpecificUI();
     }
 
     setupEventListeners() {
@@ -28,6 +36,28 @@ export class MenuManager {
         if (this.debugToggle) {
             this.debugToggle.addEventListener('change', (e) => {
                 this.onDebugToggle(e.target.checked);
+            });
+        }
+
+        // Gyroscope toggle - solo si NO es móvil (en móvil es automático)
+        if (this.gyroscopeToggle && this.onGyroscopeToggle && !this.isMobileDevice) {
+            this.gyroscopeToggle.addEventListener('change', async (e) => {
+                const isActive = await this.onGyroscopeToggle(e.target.checked);
+                // Si falló la activación, desmarcar el checkbox
+                if (!isActive && e.target.checked) {
+                    e.target.checked = false;
+                    this.showGyroscopeError();
+                }
+            });
+        }
+
+        // Calibrate button
+        if (this.calibrateBtn) {
+            this.calibrateBtn.addEventListener('click', () => {
+                if (this.onCalibrate) {
+                    this.onCalibrate();
+                    this.showCalibrationMessage();
+                }
             });
         }
 
@@ -56,6 +86,31 @@ export class MenuManager {
                 this.hideWinOverlay();
                 this.showMenu();
             });
+        }
+    }
+
+    /**
+     * Configura la UI según el tipo de dispositivo
+     */
+    setupDeviceSpecificUI() {
+        if (this.isMobileDevice) {
+            // En móvil: ocultar el toggle y mostrar siempre el botón de calibración
+            if (this.gyroscopeToggle) {
+                this.gyroscopeToggle.parentElement.style.display = 'none';
+            }
+            if (this.calibrateBtn) {
+                this.calibrateBtn.style.display = 'inline-block';
+            }
+            console.log('📱 Interfaz configurada para MÓVIL - Giroscopio automático');
+        } else {
+            // En desktop: ocultar controles de giroscopio completamente
+            if (this.gyroscopeToggle) {
+                this.gyroscopeToggle.parentElement.style.display = 'none';
+            }
+            if (this.calibrateBtn) {
+                this.calibrateBtn.style.display = 'none';
+            }
+            console.log('🖥️ Interfaz configurada para DESKTOP - Control por mouse');
         }
     }
 
@@ -180,6 +235,57 @@ export class MenuManager {
         if (levelsConfig[levelId]) {
             levelsConfig[levelId].unlocked = true;
             this.createLevelButtons(levelsConfig);
+        }
+    }
+
+    /**
+     * Establece el callback para calibración del giroscopio
+     * @param {Function} callback - Función a ejecutar al calibrar
+     */
+    setCalibrationCallback(callback) {
+        this.onCalibrate = callback;
+    }
+
+    /**
+     * Muestra mensaje de error al activar giroscopio
+     */
+    showGyroscopeError() {
+        const message = document.createElement('div');
+        message.className = 'gyroscope-message error';
+        message.textContent = '❌ No se pudo activar el giroscopio. Verifica permisos.';
+        document.body.appendChild(message);
+        
+        setTimeout(() => {
+            message.remove();
+        }, 3000);
+    }
+
+    /**
+     * Muestra mensaje de calibración exitosa
+     */
+    showCalibrationMessage() {
+        const message = document.createElement('div');
+        message.className = 'gyroscope-message success';
+        message.textContent = '✅ Giroscopio calibrado';
+        document.body.appendChild(message);
+        
+        setTimeout(() => {
+            message.remove();
+        }, 2000);
+    }
+
+    /**
+     * Actualiza el estado visual del toggle de giroscopio
+     * @param {boolean} isActive - Si el giroscopio está activo
+     */
+    updateGyroscopeToggle(isActive) {
+        if (this.gyroscopeToggle) {
+            this.gyroscopeToggle.checked = isActive;
+        }
+        
+        // Mostrar/ocultar botón de calibración
+        if (this.calibrateBtn) {
+            this.calibrateBtn.style.display = isActive ? 'inline-block' : 'none';
         }
     }
 }

@@ -25,7 +25,7 @@ export const LEVELS_CONFIG = {
             { position: { x: -5, y: 20, z: -5 }, color: 0xffff00, radius: 0.5 }     // Amarilla
         ],
         zones: [
-            { position: { x: 12, y: 3.5, z: 12 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1: Noreste
+            { position: { x: 11, y: 3.5, z: 11 }, size: { width: 3, height: 5, depth: 3 } },   // Zona 1: Noreste
         ]
     },
     2: {
@@ -50,8 +50,8 @@ export const LEVELS_CONFIG = {
             { position: { x: -5, y: 20, z: -5 }, color: 0xffff00, radius: 0.5 }     // Amarilla
         ],
         zones: [
-            { position: { x: 12, y: 3.5, z: 12 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1: Noreste
-            { position: { x: -12, y: 3.5, z: -12 }, size: { width: 3, height: 1, depth: 3 } }, // Zona 3: Suroeste
+            { position: { x: 11, y: 3.5, z: 11 }, size: { width: 3, height: 5, depth: 3 } },   // Zona 1: Noreste
+            { position: { x: -11, y: 3.5, z: -11 }, size: { width: 3, height: 5, depth: 3 } }, // Zona 3: Suroeste
         ]
     },
     3: {
@@ -66,7 +66,7 @@ export const LEVELS_CONFIG = {
             rotation: { x: 0, y: 0, z: 0 }
         },
         bounds: {
-            wallDistance: 25,
+            wallDistance: 27,
             wallHeight: 12,
             wallThickness: 1,
             groundOffsetY: 3
@@ -78,10 +78,10 @@ export const LEVELS_CONFIG = {
             { position: { x: 8, y: 20, z: -8 }, color: 0xffff00, radius: 0.5 }       // Amarillo
         ],
         zones: [
-            { position: { x: 15, y: 3.5, z: 15 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1
-            { position: { x: -15, y: 3.5, z: -15 }, size: { width: 3, height: 1, depth: 3 } },  // Zona 2
-            { position: { x: 15, y: 3.5, z: -15 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 3
-            { position: { x: -15, y: 3.5, z: 15 }, size: { width: 3, height: 1, depth: 3 } }    // Zona 4
+            { position: { x: 15, y: 3.5, z: 15 }, size: { width: 3, height: 5.5, depth: 3 } },   // Zona 1
+            { position: { x: -15, y: 3.5, z: -15 }, size: { width: 3, height: 5.5, depth: 3 } },  // Zona 2
+            { position: { x: 15, y: 3.5, z: -15 }, size: { width: 3, height: 5.5, depth: 3 } },   // Zona 3
+            { position: { x: -15, y: 3.5, z: 15 }, size: { width: 3, height: 5.5, depth: 3 } }    // Zona 4
         ]
     }
 };

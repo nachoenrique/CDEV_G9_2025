@@ -10,6 +10,8 @@ Juego 3D de laberinto con física implementada usando **Three.js** y **Cannon.js
 - 🎨 Menú interactivo con selección de niveles
 - ⚽ Física realista con Cannon.js (gravedad, colisiones, fricción)
 - 🖱️ Control por mouse - inclina el laberinto para mover las bolas
+- 📱 Control por giroscopio - juega inclinando tu celular (móviles)
+- 🎯 Sistema de calibración para controles de giroscopio
 - 🏗️ Arquitectura modular y escalable (separación de responsabilidades)
 - 🐛 Sistema de debug integrado (activable desde el menú)
 - 🎊 Sistema de victoria y progresión de niveles
@@ -45,12 +47,37 @@ npm run dev
 
 ## 🎮 Cómo jugar
 
+### Control por Mouse (Desktop)
 1. **Selecciona un nivel** desde el menú principal
 2. **Mueve el mouse** para inclinar el laberinto
 3. **Guía las pelotas** hacia las zonas objetivo (rojas)
 4. Las zonas se vuelven **verdes** cuando una pelota está dentro
 5. **Completa todas las zonas** para ganar el nivel
 6. Desbloquea niveles adicionales al completar los anteriores
+
+### Control por Giroscopio (Móvil) 📱
+
+¡Ahora puedes jugar inclinando tu celular!
+
+1. **Activa el giroscopio** desde el menú principal:
+   - Marca el checkbox "📱 Control Giroscopio"
+   - En iOS, acepta el permiso cuando se solicite
+   
+2. **Calibra el giroscopio** (opcional):
+   - Mantén el celular en posición cómoda
+   - Presiona el botón "🎯 Calibrar"
+   - Esta será tu posición neutral
+   
+3. **Juega inclinando el dispositivo**:
+   - Inclina el celular hacia adelante/atrás para mover en el eje X
+   - Inclina el celular hacia izquierda/derecha para mover en el eje Z
+   - Mantén el teléfono en posición horizontal para mayor control
+
+**Consejos para control de giroscopio:**
+- Calibra antes de cada nivel para mejor precisión
+- Usa movimientos suaves y graduales
+- Si el control es muy sensible/lento, recalibra
+- En iOS, asegúrate de permitir el acceso al giroscopio cuando se solicite
 
 ### Modo Debug
 
@@ -77,6 +104,7 @@ CDEV_G9_2025/
 ├── utils/
 │   ├── physics.js          # Utilidades de física (Trimesh, conversiones)
 │   ├── maze.js             # Clase para cargar laberintos
+│   ├── deviceOrientation.js # Control de giroscopio/acelerómetro
 │   └── DebugManager.js     # Sistema de debug visual
 ├── models/
 │   └── maze.glb            # Modelos 3D de los laberintos
@@ -199,6 +227,23 @@ export const GAME_CONFIG = {
 ### El debug no funciona
 - Marca el checkbox "Modo Debug" en el menú principal
 - Verifica que `cannon-es-debugger` esté instalado: `npm install`
+
+### El giroscopio no funciona en mi celular
+**En iOS:**
+- Asegúrate de usar iOS 13 o superior
+- Acepta el permiso cuando se solicite
+- Si no aparece la solicitud, ve a Configuración > Safari > Avanzado > Experimental y activa "DeviceOrientation Event"
+- Recarga la página después de cambiar configuraciones
+
+**En Android:**
+- Verifica que tu navegador soporte DeviceOrientation API (Chrome, Firefox)
+- Asegúrate de estar usando HTTPS o localhost
+- Algunos navegadores pueden requerir interacción del usuario antes de activar sensores
+
+**General:**
+- El giroscopio solo funciona en dispositivos móviles con sensores
+- Calibra antes de jugar para mejor precisión
+- Si el control está invertido o no responde bien, presiona "Calibrar"
 
 ## 👥 Autores
 
