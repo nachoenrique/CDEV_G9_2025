@@ -75,6 +75,28 @@ function init() {
     // Event listeners
     window.addEventListener('resize', onWindowResize);
     
+    // Keyboard shortcut: Esc para pausar y abrir/ocultar el menú
+    function _onEscapeKey(e) {
+        const key = e.key || e.code || e.keyCode;
+        if (key === 'Escape' || key === 'Esc' || key === 'Escape') {
+            // Determinar si el menú está visible
+            const menuEl = menuManager && menuManager.menuContainer ? menuManager.menuContainer : document.getElementById('menu-container');
+            const menuVisible = menuEl ? !menuEl.classList.contains('hidden') : false;
+
+            if (menuVisible) {
+                // Si el menú está abierto, cerrarlo y reanudar el juego
+                if (menuManager && typeof menuManager.hideMenu === 'function') menuManager.hideMenu();
+                if (game && typeof game.resume === 'function') game.resume();
+            } else {
+                // Si el menú está cerrado, abrirlo y pausar el juego
+                if (menuManager && typeof menuManager.showMenu === 'function') menuManager.showMenu();
+                if (game && typeof game.pause === 'function') game.pause();
+            }
+        }
+    }
+
+    window.addEventListener('keydown', _onEscapeKey);
+    
     // Activar giroscopio automáticamente en móviles
     if (isMobile()) {
         console.log('📱 Dispositivo móvil detectado - Activando giroscopio automáticamente');
