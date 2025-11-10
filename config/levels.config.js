@@ -101,6 +101,36 @@ export const LEVELS_CONFIG = {
             { position: { x: 15, y: 3.5, z: -15 }, size: { width: 3, height: 5.5, depth: 3 } },   // Zona 3
             { position: { x: -15, y: 3.5, z: 15 }, size: { width: 3, height: 5.5, depth: 3 } }    // Zona 4
         ]
+    },
+    4: {
+        id: 4,
+        name: "Nivel Intermedio",
+        description: "El camino es largo pero no imposible",
+        unlocked: true, // Se desbloquea al completar nivel 3
+        lighting: {
+            ambient: 0xff8040,      // Naranja suave
+            colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
+            intensity: 3.5,
+            description: "Luces naranjas - Máxima dificultad"
+        },
+        maze: {
+            model: '/models/mazePrueba.glb', 
+            scale: 2,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 }
+        },
+        bounds: {
+            wallDistance: 28,
+            wallHeight: 12,
+            wallThickness: 1,
+            groundOffsetY: 3
+        },
+        balls: [
+            { position: { x: -26, y: 20, z: 25 }, color: 0xff0000, radius: 0.5 },      // Roja
+        ],
+        zones: [
+            { position: { x: 25, y: 0.5, z: -27 }, size: { width: 2.5, height: 7, depth: 3 } }    // Zona 1
+        ]
     }
 };
 
