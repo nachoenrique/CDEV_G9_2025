@@ -163,43 +163,43 @@ function updateLevelLighting(levelId) {
     lightingSystem.ambient.intensity = 0.4;
     
     // Crear luces puntuales en las esquinas del laberinto
-    const positions = [
-        { x: 15, y: 15, z: 15 },   // Esquina noreste superior
-        { x: -15, y: 15, z: 15 },  // Esquina noroeste superior
-        { x: 15, y: 15, z: -15 },  // Esquina sureste superior
-        { x: -15, y: 15, z: -15 }, // Esquina suroeste superior
-    ];
+    // const positions = [
+    //     { x: 15, y: 15, z: 15 },   // Esquina noreste superior
+    //     { x: -15, y: 15, z: 15 },  // Esquina noroeste superior
+    //     { x: 15, y: 15, z: -15 },  // Esquina sureste superior
+    //     { x: -15, y: 15, z: -15 }, // Esquina suroeste superior
+    // ];
     
-    positions.forEach((pos, index) => {
-        const colorIndex = index % config.colors.length;
-        const pointLight = new THREE.PointLight(
-            config.colors[colorIndex],
-            config.intensity,
-            50  // Distancia de alcance
-        );
-        pointLight.position.set(pos.x, pos.y, pos.z);
-        pointLight.castShadow = true;
-        pointLight.shadow.mapSize.width = 512;
-        pointLight.shadow.mapSize.height = 512;
+    // positions.forEach((pos, index) => {
+    //     const colorIndex = index % config.colors.length;
+    //     const pointLight = new THREE.PointLight(
+    //         config.colors[colorIndex],
+    //         config.intensity,
+    //         50  // Distancia de alcance
+    //     );
+    //     pointLight.position.set(pos.x, pos.y, pos.z);
+    //     pointLight.castShadow = true;
+    //     pointLight.shadow.mapSize.width = 512;
+    //     pointLight.shadow.mapSize.height = 512;
         
-        // Guardar intensidad base para animación
-        pointLight.userData.baseIntensity = config.intensity;
+    //     // Guardar intensidad base para animación
+    //     pointLight.userData.baseIntensity = config.intensity;
         
-        scene.add(pointLight);
-        lightingSystem.pointLights.push(pointLight);
+    //     scene.add(pointLight);
+    //     lightingSystem.pointLights.push(pointLight);
         
-        // Añadir esfera visual pequeña para ver donde está la luz (opcional)
-        const sphereGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-        const sphereMaterial = new THREE.MeshBasicMaterial({ 
-            color: config.colors[colorIndex],
-            transparent: true,
-            opacity: 0.8
-        });
-        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
-        sphere.position.copy(pointLight.position);
-        scene.add(sphere);
-        lightingSystem.pointLights.push(sphere); // Para eliminarlas después
-    });
+    //     // Añadir esfera visual pequeña para ver donde está la luz (opcional)
+    //     const sphereGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    //     const sphereMaterial = new THREE.MeshBasicMaterial({ 
+    //         color: config.colors[colorIndex],
+    //         transparent: true,
+    //         opacity: 0.8
+    //     });
+    //     const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    //     sphere.position.copy(pointLight.position);
+    //     scene.add(sphere);
+    //     lightingSystem.pointLights.push(sphere); // Para eliminarlas después
+    // });
     
     console.log(`💡 Iluminación de nivel ${levelId} configurada:`, config.description);
 }

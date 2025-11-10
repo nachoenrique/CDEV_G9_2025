@@ -131,7 +131,39 @@ export const LEVELS_CONFIG = {
         zones: [
             { position: { x: 25, y: 0.5, z: -27 }, size: { width: 2.5, height: 7, depth: 3 } }    // Zona 1
         ]
-    }
+    },
+    5: {
+        id: 5,
+        name: "Nivel Intermedio",
+        description: "Más desafíos te esperan",
+        unlocked: true, // Se desbloquea al completar nivel 1
+        lighting: {
+            ambient: 0xff4040,      // Rojo suave
+            colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
+            intensity: 3.5,
+            description: "Luces rojas/moradas - Máxima dificultad"
+        },
+        maze: {
+            model: '/models/mazeRustico.glb',
+            scale: 1.5,
+            position: { x: 0, y: 0, z: 3 },
+            rotation: { x: 0, y: 0, z: 0 }
+        },
+        bounds: {
+            wallDistance: 20,
+            wallHeight: 10,
+            wallThickness: 1,
+            groundOffsetY: 2
+        },
+        balls: [
+            { position: { x: 1, y: 20, z: 18 }, color: 0x00ff00, radius: 0.5 },     // Verde
+            { position: { x: -1, y: 20, z: 18 }, color: 0xffff00, radius: 0.5 }     // Amarilla
+        ],
+        zones: [
+            { position: { x: -5, y: 3.5, z: -13 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1: Noreste
+            { position: { x: -18, y: 3.5, z: -12 }, size: { width: 3, height: 1, depth: 3 } }, // Zona 3: Suroeste
+        ]
+    },
 };
 
 /**
