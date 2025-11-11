@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - Limpiar LocalStorage</title>
+</head>
+<body>
+    <h1>🧹 Limpieza de LocalStorage</h1>
+    <button onclick="clearStorage()">Limpiar Nombre del Jugador</button>
+    <button onclick="showStorage()">Mostrar Datos Guardados</button>
+    <pre id="output"></pre>
+    
+    <script>
+        function clearStorage() {
+            localStorage.removeItem('playerName');
+            localStorage.removeItem('playerId');
+            alert('✅ LocalStorage limpiado');
+            showStorage();
+        }
+        
+        function showStorage() {
+            const name = localStorage.getItem('playerName');
+            const id = localStorage.getItem('playerId');
+            document.getElementById('output').textContent = 
+                `Nombre: ${name || 'No guardado'}\nID: ${id || 'No guardado'}`;
+        }
+        
+        showStorage();
+    </script>
+</body>
+</html>

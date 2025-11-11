@@ -6,15 +6,17 @@
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { Game } from './core/Game.js';
+import { RankingManager } from './core/RankingManager.js';
 import { MenuManager } from './ui/MenuManager.js';
+import { RankingDisplay } from './ui/RankingDisplay.js';
 import { DebugManager } from './utils/DebugManager.js';
 import { CameraZoom } from './utils/cameraZoom.js';
 import { LEVELS_CONFIG, GAME_CONFIG } from './config/levels.config.js';
-import { isMobile } from './utils/deviceDetection.js';
+import { isMobile, isIOS, requiresMotionPermission } from './utils/deviceDetection.js';
 
 // Variables globales mínimas
 let scene, camera, renderer, world;
-let game, menuManager, debugManager, cameraZoom;
+let game, menuManager, debugManager, cameraZoom, rankingManager, rankingDisplay;
 let lightingSystem = {
     ambient: null,
     directional: null,
@@ -55,14 +57,37 @@ function init() {
     
     // Managers
     debugManager = new DebugManager(scene, world);
+    rankingManager = new RankingManager();
     menuManager = new MenuManager(onLevelSelect, onDebugToggle, onGyroscopeToggle);
+    rankingDisplay = new RankingDisplay(rankingManager);
     
     // Sistema de zoom de cámara
     cameraZoom = new CameraZoom(camera, 30, 80, 2, 0.15);
     
-    // Game con referencia a la configuración de niveles y debugManager
+    // Game con referencia a la configuración de niveles, debugManager y rankingManager
     game = new Game(scene, world, camera, GAME_CONFIG, menuManager, debugManager);
     game.config.levelsConfig = LEVELS_CONFIG; // Añadir referencia para desbloqueo
+    game.rankingManager = rankingManager; // Añadir referencia al rankingManager
+    
+    // Aplicar progreso guardado a los niveles
+    game.progressManager.applyToLevelsConfig(LEVELS_CONFIG);
+    console.log('📊 Progreso cargado:', game.progressManager.getStats());
+    
+    // Event listener para botón de rankings
+    const showRankingsBtn = document.getElementById('show-rankings-btn');
+    if (showRankingsBtn) {
+        showRankingsBtn.addEventListener('click', () => {
+            rankingDisplay.show();
+        });
+    }
+    
+    // Event listener para botón de resetear progreso
+    const resetProgressBtn = document.getElementById('reset-progress-btn');
+    if (resetProgressBtn) {
+        resetProgressBtn.addEventListener('click', () => {
+            game.progressManager.resetProgress();
+        });
+    }
     
     // Configurar callback de calibración del giroscopio
     menuManager.setCalibrationCallback(() => {
@@ -97,18 +122,57 @@ function init() {
 
     window.addEventListener('keydown', _onEscapeKey);
     
-    // Activar giroscopio automáticamente en móviles
+    // Manejo de giroscopio según el dispositivo
     if (isMobile()) {
-        console.log('📱 Dispositivo móvil detectado - Activando giroscopio automáticamente');
-        // Esperar a que se cargue todo antes de activar
-        setTimeout(async () => {
-            const success = await game.controller.enableGyroscope();
-            if (success) {
-                console.log('✅ Giroscopio activado automáticamente para móvil');
-            } else {
-                console.warn('⚠️ No se pudo activar el giroscopio automáticamente');
-            }
-        }, 500);
+        console.log('📱 Dispositivo móvil detectado');
+        
+        if (isIOS() && requiresMotionPermission()) {
+            // iOS 13+ requiere interacción del usuario para solicitar permisos
+            console.log('🍎 iOS 13+ detectado - El giroscopio debe activarse manualmente desde el menú');
+            console.log('ℹ️ Usa el botón de giroscopio en el menú para activar los sensores de movimiento');
+            
+            // Mostrar un aviso temporal al usuario
+            setTimeout(() => {
+                const iosNotice = document.createElement('div');
+                iosNotice.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(0, 122, 255, 0.95);
+                    color: white;
+                    padding: 15px 25px;
+                    border-radius: 10px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    font-size: 14px;
+                    z-index: 9999;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    max-width: 90%;
+                    text-align: center;
+                `;
+                iosNotice.innerHTML = '📱 Para usar el giroscopio, actívalo desde el menú ⚙️';
+                document.body.appendChild(iosNotice);
+                
+                // Remover el aviso después de 5 segundos
+                setTimeout(() => {
+                    iosNotice.style.transition = 'opacity 0.5s';
+                    iosNotice.style.opacity = '0';
+                    setTimeout(() => iosNotice.remove(), 500);
+                }, 5000);
+            }, 1000);
+        } else {
+            // Android u otros dispositivos - intentar activar automáticamente
+            console.log('🤖 Dispositivo móvil no-iOS detectado - Intentando activar giroscopio automáticamente');
+            setTimeout(async () => {
+                const success = await game.controller.enableGyroscope();
+                if (success) {
+                    console.log('✅ Giroscopio activado automáticamente');
+                    menuManager.updateGyroscopeToggle(true);
+                } else {
+                    console.warn('⚠️ No se pudo activar el giroscopio automáticamente - usa el botón del menú');
+                }
+            }, 500);
+        }
     } else {
         console.log('🖥️ Desktop detectado - Usando control por mouse');
     }
@@ -210,6 +274,32 @@ function updateLevelLighting(levelId) {
  */
 function onLevelSelect(levelId) {
     console.log(`📍 Nivel ${levelId} seleccionado`);
+    
+    // Si es nivel 1 y no hay nombre guardado, mostrar modal
+    if (levelId === 1 && !menuManager.getPlayerName()) {
+        console.log('📝 No hay nombre guardado, mostrando modal...');
+        menuManager.showPlayerNameModal(async (playerName) => {
+            console.log('✅ Nombre confirmado:', playerName);
+            // Obtener o crear el jugador en la base de datos
+            await rankingManager.getOrCreatePlayer(playerName);
+            // Iniciar el nivel
+            startLevel(levelId);
+        });
+    } else {
+        // Si ya hay nombre o no es nivel 1, cargar directo
+        if (menuManager.getPlayerName() && !rankingManager.currentPlayer) {
+            // Asegurarse de que el jugador esté cargado en rankingManager
+            rankingManager.getOrCreatePlayer(menuManager.getPlayerName());
+        }
+        startLevel(levelId);
+    }
+}
+
+/**
+ * Inicia un nivel (función auxiliar)
+ * @param {number} levelId - ID del nivel a iniciar
+ */
+function startLevel(levelId) {
     updateLevelLighting(levelId);
     game.startLevel(levelId, LEVELS_CONFIG[levelId]);
 }

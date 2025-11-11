@@ -8,6 +8,7 @@
 
 import { LevelManager } from './LevelManager.js';
 import { MazeController } from './MazeController.js';
+import { ProgressManager } from '../utils/ProgressManager.js';
 import * as CANNON from 'cannon-es';
 
 export class Game {
@@ -18,6 +19,8 @@ export class Game {
         this.config = config;
         this.menuManager = menuManager;
         this.debugManager = debugManager; // Referencia al debugManager
+        this.rankingManager = null; // Se asignará desde main.js
+        this.progressManager = new ProgressManager(); // Gestor de progreso
         
         // Materiales de física
         this.materials = this.createMaterials();
@@ -33,6 +36,10 @@ export class Game {
         this.currentLevelId = null;
         this.isPlaying = false;
         this.hasWon = false;
+        
+        // Tracking de tiempo
+        this.levelStartTime = null;
+        this.levelCompletionTime = null;
     }
 
     /**
@@ -62,6 +69,11 @@ export class Game {
         this.currentLevelId = levelId;
         this.isPlaying = false;
         this.hasWon = false;
+        
+        // Iniciar timer
+        this.levelStartTime = Date.now();
+        this.levelCompletionTime = null;
+        console.log('⏱️ Timer iniciado');
         
         await this.levelManager.loadLevel(levelConfig);
         
@@ -191,11 +203,41 @@ export class Game {
     /**
      * Maneja la condición de victoria
      */
-    onWin() {
+    async onWin() {
         this.hasWon = true;
         this.isPlaying = false;
         
-        console.log('🎉 ¡NIVEL COMPLETADO!');
+        // Calcular tiempo de completación
+        this.levelCompletionTime = (Date.now() - this.levelStartTime) / 1000; // en segundos
+        console.log(`🎉 ¡NIVEL COMPLETADO en ${this.levelCompletionTime.toFixed(2)}s!`);
+        
+        // Guardar progreso: marcar nivel como completado y desbloquear el siguiente
+        const totalLevels = Object.keys(this.config.levelsConfig).length;
+        this.progressManager.completeLevel(this.currentLevelId, totalLevels);
+        
+        // Aplicar el progreso a la configuración de niveles
+        this.progressManager.applyToLevelsConfig(this.config.levelsConfig);
+        
+        // Calcular puntos
+        let points = 0;
+        if (this.rankingManager) {
+            points = this.rankingManager.calculatePoints(this.levelCompletionTime);
+            console.log(`⭐ Puntos obtenidos: ${points}`);
+            
+            // Guardar en la base de datos si hay jugador
+            if (this.rankingManager.currentPlayer) {
+                await this.rankingManager.saveLevelCompletion(
+                    this.rankingManager.currentPlayer.id,
+                    this.currentLevelId,
+                    this.levelCompletionTime
+                );
+            } else {
+                console.warn('⚠️ No hay jugador registrado, no se guardará la completación');
+            }
+        }
+        
+        // Actualizar overlay de victoria con estadísticas
+        this.menuManager.updateWinOverlay(this.levelCompletionTime, points);
         
         // Determinar si hay un siguiente nivel
         const nextLevelId = this.currentLevelId + 1;
@@ -203,11 +245,9 @@ export class Game {
         
         // Callback para cargar el siguiente nivel (si existe)
         const nextLevelCallback = hasNextLevel ? () => {
-            // Desbloquear el siguiente nivel
-            if (this.config.levelsConfig[nextLevelId]) {
-                this.config.levelsConfig[nextLevelId].unlocked = true;
-                this.menuManager.unlockLevel(nextLevelId, this.config.levelsConfig);
-            }
+            // El nivel ya fue desbloqueado por progressManager.completeLevel()
+            // Actualizar la UI del menú con los niveles desbloqueados
+            this.menuManager.createLevelButtons(this.config.levelsConfig);
             
             // Cargar el siguiente nivel
             this.startLevel(nextLevelId, this.config.levelsConfig[nextLevelId]);

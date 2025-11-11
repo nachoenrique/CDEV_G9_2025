@@ -6,7 +6,7 @@
 export const LEVELS_CONFIG = {
     1: {
         id: 1,
-        name: "Nivel Principiante",
+        name: "Tutorial",
         description: "Aprende los controles básicos",
         unlocked: true,
         lighting: {
@@ -36,9 +36,9 @@ export const LEVELS_CONFIG = {
     },
     2: {
         id: 2,
-        name: "Nivel Intermedio",
+        name: "Comencemos",
         description: "Más desafíos te esperan",
-        unlocked: true, // Se desbloquea al completar nivel 1
+        unlocked: false, // Se desbloquea al completar nivel 1
         lighting: {
             ambient: 0xff8040,      // Naranja suave
             colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
@@ -70,7 +70,7 @@ export const LEVELS_CONFIG = {
         id: 3,
         name: "Nivel Intermedio",
         description: "Sincronizacion y precisión",
-        unlocked: true, // Se desbloquea al completar nivel 1
+        unlocked: false, // Se desbloquea al completar nivel 1
         lighting: {
             ambient: 0xff4040,      // Rojo suave
             colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
@@ -94,15 +94,45 @@ export const LEVELS_CONFIG = {
             { position: { x: -1, y: 20, z: 18 }, color: 0xffff00, radius: 0.5 }     // Amarilla
         ],
         zones: [
-            { position: { x: -5, y: 3.5, z: -13 }, size: { width: 3, height: 1, depth: 3 } },   // Zona 1: Noreste
-            { position: { x: -18, y: 3.5, z: -12 }, size: { width: 3, height: 1, depth: 3 } }, // Zona 3: Suroeste
+            { position: { x: -5, y: 2, z: -13 }, size: { width: 3, height: 3, depth: 3 } },   // Zona 1: Noreste
+            { position: { x: -17, y: 2, z: -13.5 }, size: { width: 2.5, height: 3, depth: 3 } }, // Zona 3: Suroeste
         ]
     },
     4: {
         id: 4,
+        name: "El Pacman",
+        description: "El camino es largo pero no imposible",
+        unlocked: false, // Se desbloquea al completar nivel 3
+        lighting: {
+            ambient: 0xff8040,      // Naranja suave
+            colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
+            intensity: 3.5,
+            description: "Luces naranjas - Máxima dificultad"
+        },
+        maze: {
+            model: '/models/mazePacman.glb', 
+            scale: 9,
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { x: 0, y: 0, z: 0 }
+        },
+        bounds: {
+            wallDistance: 15,
+            wallHeight: 12,
+            wallThickness: 1,
+            groundOffsetY: 1
+        },
+        balls: [
+            { position: { x: -10, y: 20, z: 10 }, color: 0xff0000, radius: 0.5 },      // Roja
+        ],
+        zones: [
+            { position: { x: 0, y: 0.5, z: -2.7 }, size: { width: 6.1, height: 2, depth: 3 } }    // Zona 1
+        ]
+    },
+    5: {
+        id: 5,
         name: "Nivel Avanzado",
         description: "El camino es largo pero no imposible",
-        unlocked: true, // Se desbloquea al completar nivel 3
+        unlocked: false, // Se desbloquea al completar nivel 3
         lighting: {
             ambient: 0xff8040,      // Naranja suave
             colors: [0xff6600, 0xffaa00], // Naranja y amarillo intenso
@@ -128,11 +158,11 @@ export const LEVELS_CONFIG = {
             { position: { x: 25, y: 0.5, z: -27 }, size: { width: 2.5, height: 7, depth: 3 } }    // Zona 1
         ]
     },
-    5: {
-        id: 5,
-        name: "Nivel Avanzado",
+    6: {
+        id: 6,
+        name: "Nivel Pro",
         description: "Desafíos extremos te esperan",
-        unlocked: true, // Se desbloquea al completar nivel 2
+        unlocked: false, // Se desbloquea al completar nivel 2
         lighting: {
             ambient: 0xff4040,      // Rojo suave
             colors: [0xff0000, 0xff00ff, 0x8800ff], // Rojo, magenta y morado
@@ -158,10 +188,10 @@ export const LEVELS_CONFIG = {
             { position: { x: 8, y: 20, z: -8 }, color: 0xffff00, radius: 0.5 }       // Amarillo
         ],
         zones: [
-            { position: { x: 15, y: 3.5, z: 15 }, size: { width: 3, height: 5.5, depth: 3 } },   // Zona 1
-            { position: { x: -15, y: 3.5, z: -15 }, size: { width: 3, height: 5.5, depth: 3 } },  // Zona 2
-            { position: { x: 15, y: 3.5, z: -15 }, size: { width: 3, height: 5.5, depth: 3 } },   // Zona 3
-            { position: { x: -15, y: 3.5, z: 15 }, size: { width: 3, height: 5.5, depth: 3 } }    // Zona 4
+            { position: { x: 16, y: 3.5, z: 16 }, size: { width: 4.5, height: 5.5, depth: 4.5 } },   // Zona 1
+            { position: { x: -16, y: 3.5, z: -16 }, size: { width: 4.5, height: 5.5, depth: 4.5 } },  // Zona 2
+            { position: { x: 16, y: 3.5, z: -16 }, size: { width: 4.5, height: 5.5, depth: 4.5 } },   // Zona 3
+            { position: { x: -16, y: 3.5, z: 16 }, size: { width: 4.5, height: 5.5, depth: 4.5 } }    // Zona 4
         ]
     },
     // 6: {

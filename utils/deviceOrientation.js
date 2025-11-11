@@ -8,6 +8,7 @@ export class DeviceOrientationController {
         this.enabled = false;
         this.supported = false;
         this.permissionGranted = false;
+        this.hasLoggedFirstEvent = false; // Para logging de debugging
         
         // Valores de orientación del dispositivo
         this.beta = 0;  // Inclinación adelante/atrás (X axis) - rango: -180 a 180
@@ -55,17 +56,27 @@ export class DeviceOrientationController {
         // iOS 13+ requiere permiso explícito
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
             try {
+                console.log('📱 Solicitando permiso de DeviceOrientation (iOS 13+)...');
                 const permission = await DeviceOrientationEvent.requestPermission();
                 this.permissionGranted = permission === 'granted';
                 
                 if (this.permissionGranted) {
                     console.log('✅ Permiso de DeviceOrientation otorgado');
                 } else {
-                    console.warn('⚠️ Permiso de DeviceOrientation denegado');
+                    console.warn('⚠️ Permiso de DeviceOrientation denegado:', permission);
+                    alert('⚠️ Necesitas permitir el acceso al sensor de movimiento para usar el giroscopio. Por favor, recarga la página e intenta nuevamente.');
                 }
             } catch (error) {
                 console.error('❌ Error al solicitar permiso:', error);
+                console.error('Stack trace:', error.stack);
                 this.permissionGranted = false;
+                
+                // Mostrar mensaje más útil al usuario
+                if (error.toString().includes('secure context')) {
+                    alert('⚠️ El giroscopio solo funciona en páginas HTTPS. Por favor, accede a la aplicación mediante HTTPS.');
+                } else {
+                    alert('⚠️ No se pudo solicitar permiso para el giroscopio. Asegúrate de estar en una página segura (HTTPS).');
+                }
             }
         } else {
             // Android y navegadores que no requieren permiso
@@ -82,6 +93,8 @@ export class DeviceOrientationController {
     enable() {
         if (!this.supported || !this.permissionGranted) {
             console.warn('⚠️ No se puede activar: falta soporte o permiso');
+            console.warn('   - Soportado:', this.supported);
+            console.warn('   - Permiso otorgado:', this.permissionGranted);
             return false;
         }
 
@@ -117,6 +130,12 @@ export class DeviceOrientationController {
             this.beta = event.beta || 0;
             this.gamma = event.gamma || 0;
             
+            // Log inicial para verificar que los eventos están llegando
+            if (!this.hasLoggedFirstEvent) {
+                console.log('📊 Primer evento de orientación recibido:', { beta: this.beta, gamma: this.gamma });
+                this.hasLoggedFirstEvent = true;
+            }
+            
             // Calcular valores relativos a la calibración
             let relativeBeta = this.beta - this.calibrationBeta;
             let relativeGamma = this.gamma - this.calibrationGamma;
@@ -133,6 +152,7 @@ export class DeviceOrientationController {
         };
 
         window.addEventListener('deviceorientation', this.handleOrientation, true);
+        console.log('👂 Listener de deviceorientation iniciado');
     }
 
     /**

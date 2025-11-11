@@ -6,7 +6,7 @@
  * - Controles de giroscopio
  */
 
-import { isMobile } from '../utils/deviceDetection.js';
+import { isMobile, isIOS, requiresMotionPermission } from '../utils/deviceDetection.js';
 
 export class MenuManager {
     constructor(onLevelSelect, onDebugToggle, onGyroscopeToggle = null) {
@@ -22,10 +22,20 @@ export class MenuManager {
         this.calibrateBtn = document.getElementById('calibrate-btn');
         this.gameHud = document.getElementById('game-hud');
         this.winOverlay = document.getElementById('win-overlay');
+        this.playerNameModal = document.getElementById('player-name-modal');
+        this.playerNameForm = document.getElementById('player-name-form');
+        this.playerNameInput = document.getElementById('player-name-input');
+        this.nameError = document.getElementById('name-error');
         
         this.currentLevelId = null;
         this.nextLevelCallback = null;
         this.isMobileDevice = isMobile();
+        this.isIOSDevice = isIOS();
+        this.needsMotionPermission = requiresMotionPermission();
+        this.levelsConfig = null; // Guardar referencia a la config de niveles
+        
+        // Callback cuando se confirma el nombre
+        this.onPlayerNameConfirmed = null;
         
         this.setupEventListeners();
         this.setupDeviceSpecificUI();
@@ -39,8 +49,9 @@ export class MenuManager {
             });
         }
 
-        // Gyroscope toggle - solo si NO es móvil (en móvil es automático)
-        if (this.gyroscopeToggle && this.onGyroscopeToggle && !this.isMobileDevice) {
+        // Gyroscope toggle - En iOS 13+ siempre debe estar disponible para que el usuario active manualmente
+        // En otros móviles también mostrarlo como opción
+        if (this.gyroscopeToggle && this.onGyroscopeToggle) {
             this.gyroscopeToggle.addEventListener('change', async (e) => {
                 const isActive = await this.onGyroscopeToggle(e.target.checked);
                 // Si falló la activación, desmarcar el checkbox
@@ -58,6 +69,21 @@ export class MenuManager {
                     this.onCalibrate();
                     this.showCalibrationMessage();
                 }
+            });
+        }
+
+        // Formulario de nombre del jugador
+        if (this.playerNameForm) {
+            this.playerNameForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                this.handlePlayerNameSubmit();
+            });
+        }
+
+        // Validación en tiempo real del input
+        if (this.playerNameInput) {
+            this.playerNameInput.addEventListener('input', () => {
+                this.hideNameError();
             });
         }
 
@@ -85,6 +111,10 @@ export class MenuManager {
             menuBtn.addEventListener('click', () => {
                 this.hideWinOverlay();
                 this.showMenu();
+                // Refrescar los botones de niveles para mostrar los recién desbloqueados
+                if (this.levelsConfig) {
+                    this.createLevelButtons(this.levelsConfig);
+                }
             });
         }
     }
@@ -94,14 +124,25 @@ export class MenuManager {
      */
     setupDeviceSpecificUI() {
         if (this.isMobileDevice) {
-            // En móvil: ocultar el toggle y mostrar siempre el botón de calibración
+            // En móvil: MOSTRAR el toggle del giroscopio para que el usuario lo active manualmente
+            // Esto es especialmente importante en iOS 13+ donde se requiere interacción del usuario
             if (this.gyroscopeToggle) {
-                this.gyroscopeToggle.parentElement.style.display = 'none';
+                this.gyroscopeToggle.parentElement.style.display = 'flex';
+                // Añadir texto explicativo para iOS
+                if (this.isIOSDevice && this.needsMotionPermission) {
+                    const toggleLabel = this.gyroscopeToggle.parentElement.querySelector('label');
+                    if (toggleLabel) {
+                        toggleLabel.title = 'Activa el giroscopio para controlar con el movimiento del dispositivo';
+                    }
+                }
             }
             if (this.calibrateBtn) {
                 this.calibrateBtn.style.display = 'inline-block';
             }
-            console.log('📱 Interfaz configurada para MÓVIL - Giroscopio automático');
+            console.log('📱 Interfaz configurada para MÓVIL - Toggle de giroscopio visible');
+            if (this.isIOSDevice && this.needsMotionPermission) {
+                console.log('🍎 iOS 13+ detectado - El usuario debe activar el giroscopio manualmente');
+            }
         } else {
             // En desktop: ocultar controles de giroscopio completamente
             if (this.gyroscopeToggle) {
@@ -120,6 +161,9 @@ export class MenuManager {
      */
     createLevelButtons(levelsConfig) {
         if (!this.levelSelector) return;
+        
+        // Guardar referencia para poder refrescar después
+        this.levelsConfig = levelsConfig;
         
         this.levelSelector.innerHTML = '';
         
@@ -235,6 +279,7 @@ export class MenuManager {
         if (levelsConfig[levelId]) {
             levelsConfig[levelId].unlocked = true;
             this.createLevelButtons(levelsConfig);
+            console.log(`🔓 Nivel ${levelId} desbloqueado en UI`);
         }
     }
 
@@ -252,12 +297,24 @@ export class MenuManager {
     showGyroscopeError() {
         const message = document.createElement('div');
         message.className = 'gyroscope-message error';
-        message.textContent = '❌ No se pudo activar el giroscopio. Verifica permisos.';
+        
+        // Mensaje más específico para iOS
+        if (this.isIOSDevice && this.needsMotionPermission) {
+            message.innerHTML = `
+                ❌ No se pudo activar el giroscopio.<br>
+                <small>Asegúrate de estar en HTTPS y permitir el acceso a sensores de movimiento.</small>
+            `;
+        } else {
+            message.textContent = '❌ No se pudo activar el giroscopio. Verifica permisos.';
+        }
+        
         document.body.appendChild(message);
         
         setTimeout(() => {
-            message.remove();
-        }, 3000);
+            message.style.transition = 'opacity 0.3s';
+            message.style.opacity = '0';
+            setTimeout(() => message.remove(), 300);
+        }, 4000);
     }
 
     /**
@@ -286,6 +343,113 @@ export class MenuManager {
         // Mostrar/ocultar botón de calibración
         if (this.calibrateBtn) {
             this.calibrateBtn.style.display = isActive ? 'inline-block' : 'none';
+        }
+    }
+
+    /**
+     * Muestra el modal para ingresar el nombre del jugador
+     * @param {Function} callback - Función a ejecutar cuando se confirme el nombre
+     */
+    showPlayerNameModal(callback) {
+        this.onPlayerNameConfirmed = callback;
+        if (this.playerNameModal) {
+            this.playerNameModal.classList.remove('hidden');
+            // Focus en el input
+            setTimeout(() => {
+                if (this.playerNameInput) {
+                    this.playerNameInput.focus();
+                }
+            }, 100);
+        }
+    }
+
+    /**
+     * Oculta el modal de nombre del jugador
+     */
+    hidePlayerNameModal() {
+        if (this.playerNameModal) {
+            this.playerNameModal.classList.add('hidden');
+        }
+        if (this.playerNameInput) {
+            this.playerNameInput.value = '';
+        }
+        this.hideNameError();
+    }
+
+    /**
+     * Maneja el envío del formulario de nombre
+     */
+    handlePlayerNameSubmit() {
+        const name = this.playerNameInput.value.trim();
+        
+        // Validar nombre
+        if (name.length < 2) {
+            this.showNameError();
+            return;
+        }
+
+        // Guardar en localStorage
+        localStorage.setItem('playerName', name);
+        console.log('👤 Nombre del jugador guardado:', name);
+
+        // Ocultar modal
+        this.hidePlayerNameModal();
+
+        // Ejecutar callback
+        if (this.onPlayerNameConfirmed) {
+            this.onPlayerNameConfirmed(name);
+        }
+    }
+
+    /**
+     * Muestra el mensaje de error del nombre
+     */
+    showNameError() {
+        if (this.nameError) {
+            this.nameError.classList.remove('hidden');
+        }
+        if (this.playerNameInput) {
+            this.playerNameInput.style.borderColor = '#ff4444';
+        }
+    }
+
+    /**
+     * Oculta el mensaje de error del nombre
+     */
+    hideNameError() {
+        if (this.nameError) {
+            this.nameError.classList.add('hidden');
+        }
+        if (this.playerNameInput) {
+            this.playerNameInput.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+        }
+    }
+
+    /**
+     * Obtiene el nombre del jugador desde localStorage
+     * @returns {string|null} Nombre del jugador o null
+     */
+    getPlayerName() {
+        return localStorage.getItem('playerName');
+    }
+
+    /**
+     * Actualiza el overlay de victoria con tiempo y puntos
+     * @param {number} timeInSeconds - Tiempo en segundos
+     * @param {number} points - Puntos obtenidos
+     */
+    updateWinOverlay(timeInSeconds, points) {
+        const timeEl = document.getElementById('completion-time');
+        const pointsEl = document.getElementById('completion-points');
+
+        if (timeEl) {
+            const minutes = Math.floor(timeInSeconds / 60);
+            const seconds = Math.floor(timeInSeconds % 60);
+            timeEl.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        if (pointsEl) {
+            pointsEl.textContent = points;
         }
     }
 }

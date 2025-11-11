@@ -7,6 +7,7 @@ Proyecto de **Creatividad y Desarrollo de Entornos Virtuales** - Laberinto 3D in
 Juego 3D de laberinto con física implementada usando **Three.js** y **Cannon.js**. El proyecto incluye:
 
 - 🎯 Sistema de niveles configurables
+- 🔓 **Sistema de progreso persistente** - Desbloquea niveles progresivamente
 - 🎨 Menú interactivo con selección de niveles
 - ⚽ Física realista con Cannon.js (gravedad, colisiones, fricción)
 - 🖱️ Control por mouse - inclina el laberinto para mover las bolas
@@ -16,6 +17,7 @@ Juego 3D de laberinto con física implementada usando **Three.js** y **Cannon.js
 - 🐛 Sistema de debug integrado (activable desde el menú)
 - 🎊 Sistema de victoria y progresión de niveles
 - 📊 HUD en tiempo real con información del juego
+- 💾 Guardado automático en localStorage
 
 ## 🚀 Instalación
 
@@ -46,6 +48,17 @@ npm run dev
    - Abre esa URL en tu navegador
 
 ## 🎮 Cómo jugar
+
+### Sistema de Progreso 🔓
+
+El juego incluye un **sistema de progreso persistente**:
+
+- ✅ El **Nivel 1** siempre está desbloqueado
+- 🔒 Los niveles siguientes están **bloqueados** inicialmente
+- 🎉 Al completar un nivel, **automáticamente se desbloquea el siguiente**
+- 💾 Tu progreso se **guarda automáticamente** en localStorage
+- 🔄 Puedes **reiniciar el progreso** desde el botón en el menú
+- 📊 El progreso se mantiene entre sesiones del navegador
 
 ### Control por Mouse (Desktop)
 1. **Selecciona un nivel** desde el menú principal
@@ -102,6 +115,7 @@ CDEV_G9_2025/
 ├── ui/
 │   └── MenuManager.js      # Gestión del menú y HUD
 ├── utils/
+│   ├── ProgressManager.js  # Sistema de progreso y guardado
 │   ├── physics.js          # Utilidades de física (Trimesh, conversiones)
 │   ├── maze.js             # Clase para cargar laberintos
 │   ├── deviceOrientation.js # Control de giroscopio/acelerómetro
@@ -206,6 +220,28 @@ export const GAME_CONFIG = {
 ```
 
 ## 🐛 Solución de problemas
+
+### Sistema de Progreso
+
+#### No se desbloquean los niveles
+- Completa el nivel anterior primero
+- Verifica que todas las zonas estén verdes antes de que aparezca el overlay de victoria
+- Revisa la consola del navegador (F12) para ver si hay errores
+
+#### Quiero resetear mi progreso
+- Usa el botón "🔄 Reiniciar Progreso" en el menú principal
+- O ejecuta en la consola: `localStorage.removeItem('mazeGameProgress')` y recarga
+
+#### Quiero desbloquear todos los niveles (para testing)
+Ejecuta en la consola del navegador (F12):
+```javascript
+const progress = JSON.parse(localStorage.getItem('mazeGameProgress')) || {};
+progress.unlockedLevels = [1, 2, 3, 4, 5, 6];
+localStorage.setItem('mazeGameProgress', JSON.stringify(progress));
+location.reload();
+```
+
+Ver también: [PROGRESS-SYSTEM.md](PROGRESS-SYSTEM.md) para más detalles.
 
 ### El servidor no inicia
 - Verifica que Node.js esté instalado: `node --version`

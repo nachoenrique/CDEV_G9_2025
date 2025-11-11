@@ -25,6 +25,74 @@
         </label>
         <button id="calibrate-btn" class="calibrate-btn" style="display: none;">🎯 Calibrar</button>
       </div>
+      <button id="show-rankings-btn" class="show-rankings-btn">🏆 Ver Rankings</button>
+      <button id="reset-progress-btn" class="reset-progress-btn">🔄 Reiniciar Progreso</button>
+    </div>
+  </div>
+
+  <!-- Pantalla de Rankings -->
+  <div id="rankings-container" class="rankings-container hidden">
+    <div class="rankings-content">
+      <h1>🏆 Rankings</h1>
+      
+      <!-- Tabs -->
+      <div class="rankings-tabs">
+        <button class="tab-btn active" data-tab="global">Ranking Global</button>
+        <button class="tab-btn" data-tab="levels">Por Nivel</button>
+      </div>
+
+      <!-- Tab: Ranking Global -->
+      <div id="tab-global" class="tab-content active">
+        <div class="ranking-header">
+          <h2>Top Jugadores - Puntos Totales</h2>
+          <button id="refresh-global-btn" class="refresh-btn">🔄 Actualizar</button>
+        </div>
+        <div id="global-ranking-list" class="ranking-list">
+          <div class="loading">Cargando rankings...</div>
+        </div>
+      </div>
+
+      <!-- Tab: Ranking por Nivel -->
+      <div id="tab-levels" class="tab-content">
+        <div class="ranking-header">
+          <h2>Mejores Tiempos</h2>
+          <div class="level-selector-tabs">
+            <button class="level-tab-btn active" data-level="1">Nivel 1</button>
+            <button class="level-tab-btn" data-level="2">Nivel 2</button>
+            <button class="level-tab-btn" data-level="3">Nivel 3</button>
+            <button class="level-tab-btn" data-level="4">Nivel 4</button>
+            <button class="level-tab-btn" data-level="5">Nivel 5</button>
+          </div>
+          <button id="refresh-level-btn" class="refresh-btn">🔄 Actualizar</button>
+        </div>
+        <div id="level-ranking-list" class="ranking-list">
+          <div class="loading">Cargando rankings...</div>
+        </div>
+      </div>
+
+      <button id="close-rankings-btn" class="close-rankings-btn">← Volver al Menú</button>
+    </div>
+  </div>
+
+  <!-- Modal de nombre del jugador -->
+  <div id="player-name-modal" class="player-name-modal hidden">
+    <div class="player-name-content">
+      <h2>👤 ¡Bienvenido!</h2>
+      <p>Ingresa tu nombre para participar en el ranking</p>
+      <form id="player-name-form">
+        <input 
+          type="text" 
+          id="player-name-input" 
+          placeholder="Tu nombre aquí..." 
+          maxlength="20"
+          autocomplete="off"
+          required
+        />
+        <div id="name-error" class="name-error hidden">
+          ⚠️ El nombre debe tener al menos 2 caracteres
+        </div>
+        <button type="submit" class="btn-primary">🎮 Comenzar a Jugar</button>
+      </form>
     </div>
   </div>
 
@@ -32,6 +100,10 @@
   <div id="win-overlay" class="win-overlay hidden">
     <div class="win-content">
       <h2>🎉 ¡Nivel Completado!</h2>
+      <div id="completion-stats" class="completion-stats">
+        <p>⏱️ Tiempo: <span id="completion-time">--:--</span></p>
+        <p>⭐ Puntos: <span id="completion-points">0</span></p>
+      </div>
       <button id="next-level-btn">Siguiente Nivel</button>
       <button id="menu-btn">Volver al Menú</button>
     </div>

@@ -30,7 +30,12 @@ export function isTablet() {
 export function isIOS() {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
     
-    return /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+    // Detección mejorada que incluye iOS 13+ y dispositivos más nuevos
+    // También detecta iPads que se identifican como Mac en iOS 13+
+    const isIOSDevice = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
+    const isIOSNewAPI = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+    
+    return isIOSDevice || isIOSNewAPI;
 }
 
 /**
@@ -97,6 +102,15 @@ export function getDeviceInfo() {
  */
 export function supportsGyroscope() {
     return 'DeviceOrientationEvent' in window;
+}
+
+/**
+ * Detecta si el dispositivo requiere permisos para el giroscopio (iOS 13+)
+ * @returns {boolean} True si requiere permisos explícitos
+ */
+export function requiresMotionPermission() {
+    return typeof DeviceOrientationEvent !== 'undefined' && 
+           typeof DeviceOrientationEvent.requestPermission === 'function';
 }
 
 /**
